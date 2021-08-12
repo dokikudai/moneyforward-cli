@@ -1,0 +1,4 @@
+###### Requirements without Version Specifiers ######`
+click
+pandas
+python_dateutil
