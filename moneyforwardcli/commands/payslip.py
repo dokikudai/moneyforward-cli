@@ -76,17 +76,33 @@ def create_custom_date(body, start_date):
                             dt.strftime(
                                 start_date +
                                 relativedelta(months=cnt_date),
+                                "%Y年%m月度"))
+
+                        _hspdate.append(
+                            dt.strftime(
+                                start_date +
+                                relativedelta(months=cnt_date) +
+                                relativedelta(months=1) -
+                                relativedelta(days=1),
                                 "%Y/%m/%d"))
 
+                        _hsedate.append(
+                            dt.strftime(
+                                start_date +
+                                relativedelta(months=cnt_date) -
+                                relativedelta(days=1),
+                                "%Y/%m/%d"))
+
+
                 if len(data) > 1 and data[0] == "賞与":
-                    pass
+                    _hdata.append(f"賞与 {data[1]}")
 
                 if len(data) == 1 and data[0] == "合計":
                     _hdata.append(data[0])
                     _hspdate.append("")
                     _hsedate.append("")
 
-            break
+            
 
     logger.debug(f"_hdata: {_hdata}")
     logger.debug(f"_hspdate: {_hspdate}")
