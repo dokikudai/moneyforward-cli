@@ -39,17 +39,18 @@ def to_journal_csv(filename):
 
     head_reader = csv.reader(io.StringIO(header))
  
-    custom_header = create_custom_date(body, get_start_date(head_reader))
-    body = custom_header + body
+    custom_rows = create_custom_date(body, get_custom_parts(head_reader))
+    body = custom_rows + body
 
     df = pd.read_csv(io.StringIO(body), index_col=0)
     click.echo(df)
 
 
-def create_custom_date(body, start_date):
+def create_custom_date(body, custom_parts):
     header = [""]
     custom_row_1 = ["給与支払日"]
     custom_row_2 = ["給与計算締日"]
+    custom_row_3 = ["部門"]
 
     reader = csv.reader(io.StringIO(body))
     for i, r in enumerate(reader):
@@ -69,7 +70,7 @@ def create_custom_date(body, start_date):
                     logger.debug(f"num_start_month: {num_start_month}, data[1]: {data[1]}")
                     
                     cnt_month = i - 1
-                    dt_base = start_date + relativedelta(months=cnt_month)
+                    dt_base = custom_parts.get("start_date") + relativedelta(months=cnt_month)
                     dt_pay = (
                         dt_base + 
                         relativedelta(months=1) - 
@@ -83,6 +84,7 @@ def create_custom_date(body, start_date):
                     header.append(dt.strftime(dt_pay, "%Y年%m月度"))
                     custom_row_1.append(dt.strftime(dt_pay, "%Y/%m/%d"))
                     custom_row_2.append(dt.strftime(dt_base - relativedelta(days=1), "%Y/%m/%d"))
+                    custom_row_3.append(custom_parts.get("depertment"))
 
                     continue
 
@@ -98,6 +100,7 @@ def create_custom_date(body, start_date):
                     )
                     custom_row_1.append(dt.strftime(dt_bounus_pay, "%Y/%m/%d"))
                     custom_row_2.append(data[1])
+                    custom_row_3.append(custom_parts.get("depertment"))
 
                     continue
 
@@ -106,6 +109,7 @@ def create_custom_date(body, start_date):
                     header.append(data[0])
                     custom_row_1.append("")
                     custom_row_2.append("")
+                    custom_row_3.append(custom_parts.get("depertment"))
 
                     continue
 
@@ -116,14 +120,22 @@ def create_custom_date(body, start_date):
     logger.debug(f"header: {header}")
     logger.debug(f"custom_row_1: {custom_row_1}")
     logger.debug(f"custom_row_2: {custom_row_2}")
+    logger.debug(f"custom_row_3: {custom_row_3}")
 
     custom_rows = ""
-    for i in [header, custom_row_1, custom_row_2]:
+    for i in [header, custom_row_1, custom_row_2, custom_row_3]:
         custom_rows += (", ".join(i) + "\n")
         
     logger.debug(f"custom_rows: {custom_rows}")
 
     return custom_rows
+
+
+def get_custom_parts(head_reader):
+    return {
+        "start_date": get_start_date(head_reader),
+        "depertment": get_depertment(head_reader)
+    }
 
 
 def get_start_date(head_reader):
@@ -133,6 +145,8 @@ def get_start_date(head_reader):
             strdt = dt.strptime(_strdt, "%Y年%m月%d日")
             logger.debug(f"strdt: {strdt}")
             return strdt
+
+    logger.error("get_start_date")
 
 
 def get_depertment(head_reader):
