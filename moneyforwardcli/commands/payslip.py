@@ -79,12 +79,13 @@ def to_journal_csv(filename):
     env_df = pd.read_csv("./.env/csv.csv", index_col=0)
     # click.echo(env_df.loc["基本給(支給)", "摘要"])
     # csv_eval(env_df.loc["基本給(支給)", "摘要"])
-    dict_df = {label: s.replace("0", np.nan).dropna()
-               for label, s in df.iteritems()}
+    dict_df = {label: s.replace("0", np.nan).dropna() for label, s in df.iteritems()}
     click.echo(dict_df["2020年07月度"])
 
     _dict_df = dict_df["2020年07月度"]
     _dict_df.replace("0", np.nan)
+
+    click.echo(f'_dict_df: {_dict_df}')
 
     list_custom_item = [i.value for i in CustomItem]
     rev_custom_item = {e.value: e.name for e in CustomItem}
@@ -93,13 +94,17 @@ def to_journal_csv(filename):
 
     for idx in _dict_df.index.values:
         if idx in env_df.index:
-            for i_oj in OutJournals:
-                #click.echo(f"i_oj: {i_oj}")
-                if i_oj == OutJournals.COL_1:
-                    click.echo(i_oj)
+            for oj in OutJournals:
+                #click.echo(f"oj: {oj}")
+
+                if oj.value == OutJournals.COL_1.value:
+                    click.echo(f'idx: {idx}, oj.value: {oj.value}')
                     # click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
-                    # click.echo(env_df.loc[idx, i_oj.value])
-                    pass
+                    click.echo(env_df.loc[idx, oj.value])
+                
+                if oj.value == OutJournals.COL_2.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
 
         if idx in list_custom_item:
             click.echo(f'CustomItem: {idx}')
@@ -117,9 +122,9 @@ def csv_eval(row):
 
 def create_custom_date(body, custom_parts):
     header = [""]
-    custom_row_1 = ["給与支払日"]
-    custom_row_2 = ["給与計算締日"]
-    custom_row_3 = ["部門"]
+    custom_row_1 = [CustomItem.SALARY_PAYMENT_DATE.value]
+    custom_row_2 = [CustomItem.PAYROLL_CLOSING_DATE.value]
+    custom_row_3 = [CustomItem.DEPARTMENT.value]
 
     reader = csv.reader(io.StringIO(body))
     for i, r in enumerate(reader):
