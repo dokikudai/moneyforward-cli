@@ -9,7 +9,8 @@ from dateutil.relativedelta import relativedelta
 import logging
 import click_logging
 from monthdelta import monthmod
-
+from enum import Enum
+import numpy as np
 
 logger = logging.getLogger(__name__)
 click_logging.basic_config(logger)
@@ -18,6 +19,36 @@ click_logging.basic_config(logger)
 @click.group()
 def payslip():
     pass
+
+
+class OutJournals(Enum):
+    COL_1 = "取引No"
+    COL_2 = "取引日"
+    COL_3 = "借方勘定科目"
+    COL_4 = "借方補助科目"
+    COL_5 = "借方税区分"
+    COL_6 = "借方部門"
+    COL_7 = "借方金額(円)"
+    COL_8 = "借方税額"
+    COL_9 = "貸方勘定科目"
+    COL_10 = "貸方補助科目"
+    COL_11 = "貸方税区分"
+    COL_12 = "貸方部門"
+    COL_13 = "貸方金額(円)"
+    COL_14 = "貸方税額"
+    COL_15 = "摘要"
+    COL_16 = "仕訳メモ"
+    COL_17 = "タグ"
+    COL_18 = "MF仕訳タイプ"
+    COL_19 = "決算整理仕訳"
+    COL_20 = "作成日時"
+    COL_21 = "最終更新日時"
+
+
+class CustomItem(Enum):
+    SALARY_PAYMENT_DATE = "給与支払日"
+    PAYROLL_CLOSING_DATE = "給与計算締日"
+    DEPARTMENT = "部門"
 
 
 @payslip.command()
@@ -38,12 +69,50 @@ def to_journal_csv(filename):
             body += f
 
     head_reader = csv.reader(io.StringIO(header))
- 
+
     custom_rows = create_custom_date(body, get_custom_parts(head_reader))
     body = custom_rows + body
 
     df = pd.read_csv(io.StringIO(body), index_col=0)
-    click.echo(df)
+    # click.echo(df.dropna(how="all"))
+
+    env_df = pd.read_csv("./.env/csv.csv", index_col=0)
+    # click.echo(env_df.loc["基本給(支給)", "摘要"])
+    # csv_eval(env_df.loc["基本給(支給)", "摘要"])
+    dict_df = {label: s.replace("0", np.nan).dropna()
+               for label, s in df.iteritems()}
+    click.echo(dict_df["2020年07月度"])
+
+    _dict_df = dict_df["2020年07月度"]
+    _dict_df.replace("0", np.nan)
+
+    list_custom_item = [i.value for i in CustomItem]
+    rev_custom_item = {e.value: e.name for e in CustomItem}
+    click.echo(rev_custom_item)
+    payslip_item = {}
+
+    for idx in _dict_df.index.values:
+        if idx in env_df.index:
+            for i_oj in OutJournals:
+                #click.echo(f"i_oj: {i_oj}")
+                if i_oj == OutJournals.COL_1:
+                    click.echo(i_oj)
+                    # click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
+                    # click.echo(env_df.loc[idx, i_oj.value])
+                    pass
+
+        if idx in list_custom_item:
+            click.echo(f'CustomItem: {idx}')
+            payslip_item[rev_custom_item[idx]] = _dict_df[idx]
+
+
+def csv_eval(row):
+    f_string = "f'" + row + "'"
+    click.echo(f'f_string: {f_string}')
+
+    exec_f = eval(f_string, None, {'yyyymm': "2021年7月度", 'depertment': "部門A"})
+    click.echo(exec_f)
+    return exec_f
 
 
 def create_custom_date(body, custom_parts):
@@ -67,13 +136,15 @@ def create_custom_date(body, custom_parts):
                 if len(data) > 1 and "月度" in data[0]:
                     num_start_month = int(re.sub(r'[ 月度]', r'', data[0]))
 
-                    logger.debug(f"num_start_month: {num_start_month}, data[1]: {data[1]}")
-                    
+                    logger.debug(
+                        f"num_start_month: {num_start_month}, data[1]: {data[1]}")
+
                     cnt_month = i - 1
-                    dt_base = custom_parts.get("start_date") + relativedelta(months=cnt_month)
+                    dt_base = custom_parts.get(
+                        "start_date") + relativedelta(months=cnt_month)
                     dt_pay = (
-                        dt_base + 
-                        relativedelta(months=1) - 
+                        dt_base +
+                        relativedelta(months=1) -
                         relativedelta(days=1)
                     )
 
@@ -83,7 +154,12 @@ def create_custom_date(body, custom_parts):
 
                     header.append(dt.strftime(dt_pay, "%Y年%m月度"))
                     custom_row_1.append(dt.strftime(dt_pay, "%Y/%m/%d"))
-                    custom_row_2.append(dt.strftime(dt_base - relativedelta(days=1), "%Y/%m/%d"))
+                    custom_row_2.append(
+                        dt.strftime(
+                            dt_base -
+                            relativedelta(
+                                days=1),
+                            "%Y/%m/%d"))
                     custom_row_3.append(custom_parts.get("depertment"))
 
                     continue
@@ -93,9 +169,9 @@ def create_custom_date(body, custom_parts):
                     header.append(f"賞与 {data[1]}")
                     dt_bounus_base = dt.strptime(data[1], "%Y/%m/%d")
                     dt_bounus_pay = (
-                        dt_bounus_base + 
-                        relativedelta(days=1) + 
-                        relativedelta(months=1) - 
+                        dt_bounus_base +
+                        relativedelta(days=1) +
+                        relativedelta(months=1) -
                         relativedelta(days=1)
                     )
                     custom_row_1.append(dt.strftime(dt_bounus_pay, "%Y/%m/%d"))
@@ -124,8 +200,8 @@ def create_custom_date(body, custom_parts):
 
     custom_rows = ""
     for i in [header, custom_row_1, custom_row_2, custom_row_3]:
-        custom_rows += (", ".join(i) + "\n")
-        
+        custom_rows += (",".join(i) + "\n")
+
     logger.debug(f"custom_rows: {custom_rows}")
 
     return custom_rows
