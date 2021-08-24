@@ -22,27 +22,44 @@ def payslip():
 
 
 class OutJournals(Enum):
-    COL_1 = "取引No"
-    COL_2 = "取引日"
-    COL_3 = "借方勘定科目"
-    COL_4 = "借方補助科目"
-    COL_5 = "借方税区分"
-    COL_6 = "借方部門"
-    COL_7 = "借方金額(円)"
-    COL_8 = "借方税額"
-    COL_9 = "貸方勘定科目"
-    COL_10 = "貸方補助科目"
-    COL_11 = "貸方税区分"
-    COL_12 = "貸方部門"
-    COL_13 = "貸方金額(円)"
-    COL_14 = "貸方税額"
-    COL_15 = "摘要"
-    COL_16 = "仕訳メモ"
-    COL_17 = "タグ"
-    COL_18 = "MF仕訳タイプ"
-    COL_19 = "決算整理仕訳"
-    COL_20 = "作成日時"
-    COL_21 = "最終更新日時"
+    COL_1 = ("取引No", np.NaN)
+    COL_2 = ("取引日", np.NaN)
+    COL_3 = ("借方勘定科目", "")
+    COL_4 = ("借方補助科目", "")
+    COL_5 = ("借方税区分", "")
+    COL_6 = ("借方部門", "")
+    COL_7 = ("借方金額(円)", "")
+    COL_8 = ("借方税額", "")
+    COL_9 = ("貸方勘定科目", np.NaN)
+    COL_10 = ("貸方補助科目", "")
+    COL_11 = ("貸方税区分", "対象外")
+    COL_12 = ("貸方部門", "")
+    COL_13 = ("貸方金額(円)", np.NaN)
+    COL_14 = ("貸方税額", )
+    COL_15 = ("摘要", )
+    COL_16 = ("仕訳メモ", )
+    COL_17 = ("タグ", )
+    COL_18 = ("MF仕訳タイプ", )
+    COL_19 = ("決算整理仕訳", )
+    COL_20 = ("作成日時", )
+    COL_21 = ("最終更新日時", )
+
+    def __init__(self, env_df):
+        self.env_df = env_df
+
+    def env_print(self):
+        if self.env_df:
+            return self
+        else:
+            if self.COL_1.value == env
+            _df:
+            return self
+
+    def is_val(self, val):
+        return val == self
+
+    def __str__(self):
+        return f'name: {self.name}, value: {self.value}'
 
 
 class CustomItem(Enum):
@@ -80,7 +97,7 @@ def to_journal_csv(filename):
     # click.echo(env_df.loc["基本給(支給)", "摘要"])
     # csv_eval(env_df.loc["基本給(支給)", "摘要"])
     dict_df = {label: s.replace("0", np.nan).dropna() for label, s in df.iteritems()}
-    click.echo(dict_df["2020年07月度"])
+    click.echo(f'dict_df["2020年07月度"]: {dict_df["2020年07月度"]}')
 
     _dict_df = dict_df["2020年07月度"]
     _dict_df.replace("0", np.nan)
@@ -92,23 +109,81 @@ def to_journal_csv(filename):
     click.echo(rev_custom_item)
     payslip_item = {}
 
+    click.echo(f'_dict_df.index.values: {_dict_df.index}')
+
+    row_journal = []
+
     for idx in _dict_df.index.values:
+        if idx in list_custom_item:
+            click.echo(f'CustomItem: {idx}')
+            payslip_item[rev_custom_item[idx]] = _dict_df[idx]
+
         if idx in env_df.index:
             for oj in OutJournals:
-                #click.echo(f"oj: {oj}")
+                # click.echo(f"oj: {oj}")
 
                 if oj.value == OutJournals.COL_1.value:
-                    click.echo(f'idx: {idx}, oj.value: {oj.value}')
-                    # click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
-                    click.echo(env_df.loc[idx, oj.value])
+                    if env_df.loc[idx, oj.value]:
+                        click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
+                    else:
+                        row_journal.append(payslip_item[CustomItem.SALARY_PAYMENT_DATE])
                 
                 if oj.value == OutJournals.COL_2.value:
                     click.echo(env_df.loc[idx, oj.value])
 
+                if oj.value == OutJournals.COL_3.value:
+                    click.echo(env_df.loc[idx, oj.value])
 
-        if idx in list_custom_item:
-            click.echo(f'CustomItem: {idx}')
-            payslip_item[rev_custom_item[idx]] = _dict_df[idx]
+                if oj.value == OutJournals.COL_4.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_5.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_6.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_7.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_8.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_9.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_10.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_11.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_12.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_13.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_14.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_15.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_16.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_18.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_19.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_20.value:
+                    click.echo(env_df.loc[idx, oj.value])
+
+                if oj.value == OutJournals.COL_21.value:
+                    click.echo(env_df.loc[idx, oj.value])
 
 
 def csv_eval(row):
