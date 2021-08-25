@@ -5,6 +5,7 @@ import io
 import pandas as pd
 import re
 from datetime import datetime as dt, timedelta
+from pytz import timezone
 from dateutil.relativedelta import relativedelta
 import logging
 import click_logging
@@ -35,14 +36,14 @@ class OutJournals(Enum):
     COL_11 = ("貸方税区分", "対象外")
     COL_12 = ("貸方部門", "")
     COL_13 = ("貸方金額(円)", np.NaN)
-    COL_14 = ("貸方税額", )
-    COL_15 = ("摘要", )
-    COL_16 = ("仕訳メモ", )
-    COL_17 = ("タグ", )
-    COL_18 = ("MF仕訳タイプ", )
-    COL_19 = ("決算整理仕訳", )
-    COL_20 = ("作成日時", )
-    COL_21 = ("最終更新日時", )
+    COL_14 = ("貸方税額", "")
+    COL_15 = ("摘要", "")
+    COL_16 = ("仕訳メモ", "")
+    COL_17 = ("タグ", "")
+    COL_18 = ("MF仕訳タイプ", "")
+    COL_19 = ("決算整理仕訳", "")
+    COL_20 = ("作成日時", dt.now(timezone("Asia/Tokyo")).strftime("%Y/%m/%d"))
+    COL_21 = ("最終更新日時", dt.now(timezone("Asia/Tokyo")).strftime("%Y/%m/%d"))
 
     def __init__(self, env_df):
         self.env_df = env_df
@@ -51,9 +52,7 @@ class OutJournals(Enum):
         if self.env_df:
             return self
         else:
-            if self.COL_1.value == env
-            _df:
-            return self
+            pass
 
     def is_val(self, val):
         return val == self
