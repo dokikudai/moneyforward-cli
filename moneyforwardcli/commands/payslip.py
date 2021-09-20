@@ -49,7 +49,7 @@ class OutJournals(Enum):
         self.col = col
         self.default_val = default_val
 
-    def select_val(self, print_val, custom_item):
+    def select_val(self, print_env_val, print_payroll_val, custom_item):
         if self is self.COL_01:
             return 1
 
@@ -65,10 +65,13 @@ class OutJournals(Enum):
         if self is self.COL_15:
             return custom_item[CustomItem.SALARY_PAYMENT_DATE.value]
 
-        if print_val != "":
-            return print_val
+        if self is self.COL_07 or self is self.COL_13:
+            return print_payroll_val
 
-        return ""
+        if print_env_val is not np.nan:
+            return print_env_val
+        else:
+            return self.default_val
 
     def __str__(self):
         return f'name: {self.name}, value: {self.value}'
@@ -138,8 +141,18 @@ def to_journal_csv(filename):
     # click.echo(f'OutJournals: {OutJournals.COL_01.select_val("v", {"":""})}')
 
     for mp_key in monthly_payslip.keys():
-        _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], custom_dic)
+        _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], monthly_payslip[mp_key], custom_dic)
               for i in OutJournals if mp_key in df_custom_print.index.values]
+
+        # _p = []
+        # for i in OutJournals:
+        #     if mp_key in df_custom_print.index.values:
+        #         if df_custom_print.at[mp_key, i.value[0]] is np.nan:
+        #             _p.append(monthly_payslip[mp_key])
+        #         else:
+        #             _p.append(i.select_val(
+        #                 df_custom_print.at[mp_key, i.value[0]], custom_dic))
+
         click.echo(_p)
 
         # click.echo(oj.value[0],
