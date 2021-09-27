@@ -73,6 +73,10 @@ class OutJournals(Enum):
         else:
             return self.default_val
 
+    @classmethod
+    def csv_header(cls):
+        return [i.value[0] for i in cls]
+
     def __str__(self):
         return f'name: {self.name}, value: {self.value}'
 
@@ -111,13 +115,8 @@ def to_journal_csv(filename):
     body = custom_rows + body
 
     df = pd.read_csv(io.StringIO(body), index_col=0)
-    # click.echo(df.dropna(how="all"))
-
-    # click.echo(df_custom_print.loc["基本給(支給)", "摘要"])
-    # csv_eval(df_custom_print.loc["基本給(支給)", "摘要"])
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df.iteritems()}
-    #click.echo(f'dict_df["2020年07月度"]: {dict_df["2020年07月度"]}')
 
     _dict_df = dict_df["2020年07月度"]
     _dict_df.replace("0", np.nan)
@@ -137,54 +136,27 @@ def to_journal_csv(filename):
 
     custom_dic = _dict_df[CustomItem.SALARY_PAYMENT_DATE.value:
                           CustomItem.DEPARTMENT.value].to_dict()
-    click.echo(custom_dic)
-    # click.echo(f'OutJournals: {OutJournals.COL_01.select_val("v", {"":""})}')
+    click.echo([i.value for i in OutJournals])
 
+    i_rows = []
     for mp_key in monthly_payslip.keys():
         _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], monthly_payslip[mp_key], custom_dic)
               for i in OutJournals if mp_key in df_custom_print.index.values]
 
-        # _p = []
-        # for i in OutJournals:
-        #     if mp_key in df_custom_print.index.values:
-        #         if df_custom_print.at[mp_key, i.value[0]] is np.nan:
-        #             _p.append(monthly_payslip[mp_key])
-        #         else:
-        #             _p.append(i.select_val(
-        #                 df_custom_print.at[mp_key, i.value[0]], custom_dic))
+        if len(_p):
+            i_rows.append(_p)
 
-        click.echo(_p)
+    click.echo(i_rows)
+    df_i_rows = pd.DataFrame(
+        i_rows,
+        columns=OutJournals.csv_header())
+    click.echo(df_i_rows)
+    df_i_rows = df_i_rows.astype({OutJournals.COL_07.value[0]: int})
+    click.echo(df_i_rows.groupby(OutJournals.COL_03.value[0]).sum())
+    df_i_rows = df_i_rows.astype({OutJournals.COL_13.value[0]: int})
+    click.echo(df_i_rows.groupby(OutJournals.COL_09.value[0]).sum())
 
-        # click.echo(oj.value[0],
-        #             mp_key,
-        #             monthly_payslip[oj.value[0]])
-#            click.echo(df_custom_print.at[mp_key, oj.val[0]])
-        # click.echo(f"oj: {oj}")
-        # click.echo(f"oj.value[0]: {oj.value[0]}")
-        # click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
-
-    # for idx in _dict_df.index.values:
-    #     if idx in list_custom_item:
-    #         click.echo(f'CustomItem: {idx}')
-    #         payslip_item[rev_custom_item[idx]] = _dict_df[idx]
-
-    #     for oj in OutJournals:
-    #         click.echo(f"oj: {oj}")
-    #         click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
-
-    #         oj.env_print
-
-    # if idx in df_custom_print.index:
-    #     click.echo(f'idx: {idx}, _dict_df[idx]: {_dict_df[idx]}')
-    #     OutJournals()
-    #     OutJournals.env_print(_dict_df[idx], custom_item)
-
-    # for oj in OutJournals:
-    #     click.echo(f"oj: {oj}")
-    #     click.echo(f'idx: {idx}, v: {_dict_df[idx]}')
-
-    #    out_j = OutJournals(_dict_df)
-    #    out_j.select_val(oj, _dict_df[idx])
+    # click.echo(df_i_rows.query('借方勘定科目=="未払費用" or 貸方勘定科目=="未払費用"'))
 
 
 def csv_eval(row):
