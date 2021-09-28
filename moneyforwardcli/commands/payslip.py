@@ -45,7 +45,7 @@ class OutJournals(Enum):
     COL_20 = ("作成日時", "")
     COL_21 = ("最終更新日時", "")
 
-    def __init__(self, col, default_val):
+    def __init__(self, col: str, default_val: str):
         self.col = col
         self.default_val = default_val
 
@@ -147,9 +147,8 @@ def to_journal_csv(filename):
             i_rows.append(_p)
 
     click.echo(i_rows)
-    df_i_rows = pd.DataFrame(
-        i_rows,
-        columns=OutJournals.csv_header())
+    df_i_rows = pd.DataFrame(i_rows, columns=OutJournals.csv_header())
+
     click.echo(df_i_rows)
     df_i_rows = df_i_rows.astype({OutJournals.COL_07.value[0]: int})
     click.echo(df_i_rows.groupby(OutJournals.COL_03.value[0]).sum())
@@ -157,6 +156,10 @@ def to_journal_csv(filename):
     click.echo(df_i_rows.groupby(OutJournals.COL_09.value[0]).sum())
 
     # click.echo(df_i_rows.query('借方勘定科目=="未払費用" or 貸方勘定科目=="未払費用"'))
+
+    _df_i_rows = pd.DataFrame(i_rows, columns=OutJournals.csv_header())
+    _df_i_rows["借方勘定科目"] = _df_i_rows["借方勘定科目"].replace(["未払費用"], [""])
+    click.echo(_df_i_rows)
 
 
 def csv_eval(row):
