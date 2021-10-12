@@ -12,6 +12,8 @@ import click_logging
 from monthdelta import monthmod
 from enum import Enum
 import numpy as np
+from typing import List
+
 
 logger = logging.getLogger(__name__)
 click_logging.basic_config(logger)
@@ -77,6 +79,16 @@ class OutJournals(Enum):
     def csv_header(cls):
         return [i.value[0] for i in cls]
 
+    @classmethod
+    def get_karikata_mibaraihiyo(cls) -> List[str]:
+        _list = [cls.COL_03, cls.COL_04, cls.COL_05, cls.COL_06, cls.COL_07, cls.COL_08]
+        return [i.value[0] for i in _list]
+
+    @classmethod
+    def get_kashikata_mibaraihiyo(cls) -> List[str]:
+        _list = [cls.COL_09, cls.COL_10, cls.COL_11, cls.COL_12, cls.COL_13, cls.COL_14]
+        return [i.value[0] for i in _list]
+
     def __str__(self):
         return f'name: {self.name}, value: {self.value}'
 
@@ -136,28 +148,54 @@ def to_journal_csv(filename):
 
     custom_dic = _dict_df[CustomItem.SALARY_PAYMENT_DATE.value:
                           CustomItem.DEPARTMENT.value].to_dict()
-    click.echo([i.value for i in OutJournals])
 
-    i_rows = []
+    _data = []
     for mp_key in monthly_payslip.keys():
         _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], monthly_payslip[mp_key], custom_dic)
               for i in OutJournals if mp_key in df_custom_print.index.values]
 
         if len(_p):
-            i_rows.append(_p)
+            _data.append(_p)
 
-    click.echo(i_rows)
-    df_i_rows = pd.DataFrame(
-        i_rows,
-        columns=OutJournals.csv_header())
-    click.echo(df_i_rows)
-    df_i_rows = df_i_rows.astype({OutJournals.COL_07.value[0]: int})
-    click.echo(df_i_rows.groupby(OutJournals.COL_03.value[0]).sum())
-    df_i_rows = df_i_rows.astype({OutJournals.COL_13.value[0]: int})
-    click.echo(df_i_rows.groupby(OutJournals.COL_09.value[0]).sum())
+    click.echo(_data)
 
-    # click.echo(df_i_rows.query('借方勘定科目=="未払費用" or 貸方勘定科目=="未払費用"'))
 
+    # 未払費用の計算
+    _df_calc_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
+    _df_calc_1 = _df_calc_1.astype({OutJournals.COL_07.value[0]: 'int'})
+    _df_calc_1 = _df_calc_1.astype({OutJournals.COL_13.value[0]: 'int'})
+    karikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_03.value[0]).sum().at['未払費用', OutJournals.COL_07.value[0]]
+    kashikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_09.value[0]).sum().at['未払費用', OutJournals.COL_13.value[0]]
+    mibaraihiyo: int = kashikata_mibaraihiyo - karikata_mibaraihiyo
+    click.echo(mibaraihiyo)
+    
+
+    # 未払費用の編集
+    _df_edit_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
+    click.echo(_df_edit_1)
+
+    karikata_index:List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
+    karikata_column:List[int] = [_df_edit_1.columns.tolist().index(i) for i in OutJournals.get_karikata_mibaraihiyo()]
+
+    kashikata_index:List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用"]
+    click.echo(kashikata_index)
+    kashikata_column:List[int] = [_df_edit_1.columns.tolist().index(i) for i in OutJournals.get_kashikata_mibaraihiyo()]
+
+    _df_edit_1.iloc[karikata_index, karikata_column] = np.NaN
+    _df_edit_1.iloc[kashikata_index, kashikata_column] = np.NaN
+
+    # 未払費用data作成
+    _data_2: List[any] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "給料賃金"]
+    click.echo(f'_data_2: {_data_2}')
+
+    _tmp = _df_edit_1.iloc[_data_2, :]
+    _tmp.iloc[0, karikata_column] = np.NaN
+
+    for _i in kashikata_column:
+        _tmp.iat[0, _i] = 1
+
+    click.echo(_tmp)
+    click.echo(_df_edit_1.append(_tmp))
 
 def csv_eval(row):
     f_string = "f'" + row + "'"
