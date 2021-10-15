@@ -159,19 +159,43 @@ def to_journal_csv(filename):
 
     click.echo(_data)
 
-
-    # 未払費用の計算
+    # マイナスデータの借方/貸方入れ替え
     _df_calc_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
     _df_calc_1 = _df_calc_1.astype({OutJournals.COL_07.value[0]: 'int'})
     _df_calc_1 = _df_calc_1.astype({OutJournals.COL_13.value[0]: 'int'})
+
+    _karikata_vals = _df_calc_1[OutJournals.COL_07.value[0]]
+    _kashikata_vals = _df_calc_1[OutJournals.COL_13.value[0]]
+
+    # SettingWithCopyWarning 防止で copy 付加
+    _select_minus = _df_calc_1[(_karikata_vals < 0) | (_kashikata_vals < 0)].copy()
+    _select_minus[OutJournals.COL_07.value[0]] = _select_minus[OutJournals.COL_07.value[0]] * -1
+    _select_minus[OutJournals.COL_13.value[0]] = _select_minus[OutJournals.COL_13.value[0]] * -1
+
+    click.echo(_select_minus)
+
+    _kari_data = _select_minus[OutJournals.get_karikata_mibaraihiyo()]
+    _kashi_data = _select_minus[OutJournals.get_kashikata_mibaraihiyo()]
+
+    click.echo(_kashi_data)
+
+    _select_minus[OutJournals.get_karikata_mibaraihiyo()] = _kashi_data
+    _select_minus[OutJournals.get_kashikata_mibaraihiyo()] = _kari_data
+
+    click.echo(_select_minus)
+
+    _df_calc_1.iloc[_select_minus.index.tolist()] = _select_minus.copy()
+
+    click.echo(_df_calc_1)
+
+    # 未払費用の計算
     karikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_03.value[0]).sum().at['未払費用', OutJournals.COL_07.value[0]]
     kashikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_09.value[0]).sum().at['未払費用', OutJournals.COL_13.value[0]]
     mibaraihiyo: int = kashikata_mibaraihiyo - karikata_mibaraihiyo
     click.echo(mibaraihiyo)
-    
 
     # 未払費用の編集
-    _df_edit_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
+    _df_edit_1 = _df_calc_1.copy()
     click.echo(_df_edit_1)
 
     karikata_index:List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
@@ -188,7 +212,7 @@ def to_journal_csv(filename):
     _data_2: List[any] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "給料賃金"]
     click.echo(f'_data_2: {_data_2}')
 
-    _tmp = _df_edit_1.iloc[_data_2, :]
+    _tmp = _df_edit_1.iloc[_data_2, :].copy()
     _tmp.iloc[0, karikata_column] = np.NaN
 
     _tmp[OutJournals.COL_09.value[0]] = "未払費用"
@@ -198,7 +222,7 @@ def to_journal_csv(filename):
 
     click.echo(_tmp)
     click.echo(_df_edit_1.append(_tmp, ignore_index=True))
-
+ 
 def csv_eval(row):
     f_string = "f'" + row + "'"
     click.echo(f'f_string: {f_string}')
