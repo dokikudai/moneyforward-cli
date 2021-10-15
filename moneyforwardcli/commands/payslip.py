@@ -191,11 +191,13 @@ def to_journal_csv(filename):
     _tmp = _df_edit_1.iloc[_data_2, :]
     _tmp.iloc[0, karikata_column] = np.NaN
 
-    for _i in kashikata_column:
-        _tmp.iat[0, _i] = 1
+    _tmp[OutJournals.COL_09.value[0]] = "未払費用"
+    _tmp[OutJournals.COL_11.value[0]] = "対象外"
+    _tmp[OutJournals.COL_12.value[0]] = custom_ports.get(CustomItem.DEPARTMENT)
+    _tmp[OutJournals.COL_13.value[0]] = mibaraihiyo
 
     click.echo(_tmp)
-    click.echo(_df_edit_1.append(_tmp))
+    click.echo(_df_edit_1.append(_tmp, ignore_index=True))
 
 def csv_eval(row):
     f_string = "f'" + row + "'"
