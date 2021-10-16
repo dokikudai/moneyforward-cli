@@ -81,15 +81,30 @@ class OutJournals(Enum):
 
     @classmethod
     def get_karikata_mibaraihiyo(cls) -> List[str]:
-        _list = [cls.COL_03, cls.COL_04, cls.COL_05, cls.COL_06, cls.COL_07, cls.COL_08]
+        _list = [
+            cls.COL_03,
+            cls.COL_04,
+            cls.COL_05,
+            cls.COL_06,
+            cls.COL_07,
+            cls.COL_08]
         return [i.value[0] for i in _list]
 
     @classmethod
     def get_kashikata_mibaraihiyo(cls) -> List[str]:
-        _list = [cls.COL_09, cls.COL_10, cls.COL_11, cls.COL_12, cls.COL_13, cls.COL_14]
+        _list = [
+            cls.COL_09,
+            cls.COL_10,
+            cls.COL_11,
+            cls.COL_12,
+            cls.COL_13,
+            cls.COL_14]
         return [i.value[0] for i in _list]
 
     def __str__(self):
+        return f'name: {self.name}, value: {self.value}'
+
+    def __repr__(self):
         return f'name: {self.name}, value: {self.value}'
 
 
@@ -168,9 +183,12 @@ def to_journal_csv(filename):
     _kashikata_vals = _df_calc_1[OutJournals.COL_13.value[0]]
 
     # SettingWithCopyWarning 防止で copy 付加
-    _select_minus = _df_calc_1[(_karikata_vals < 0) | (_kashikata_vals < 0)].copy()
-    _select_minus[OutJournals.COL_07.value[0]] = _select_minus[OutJournals.COL_07.value[0]] * -1
-    _select_minus[OutJournals.COL_13.value[0]] = _select_minus[OutJournals.COL_13.value[0]] * -1
+    _select_minus = _df_calc_1[(_karikata_vals < 0)
+                               | (_kashikata_vals < 0)].copy()
+    _select_minus[OutJournals.COL_07.value[0]
+                  ] = _select_minus[OutJournals.COL_07.value[0]] * -1
+    _select_minus[OutJournals.COL_13.value[0]
+                  ] = _select_minus[OutJournals.COL_13.value[0]] * -1
 
     click.echo(_select_minus)
 
@@ -189,40 +207,74 @@ def to_journal_csv(filename):
     click.echo(_df_calc_1)
 
     # 未払費用の計算
-    karikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_03.value[0]).sum().at['未払費用', OutJournals.COL_07.value[0]]
-    kashikata_mibaraihiyo: int = _df_calc_1.groupby(OutJournals.COL_09.value[0]).sum().at['未払費用', OutJournals.COL_13.value[0]]
+    karikata_mibaraihiyo = _df_calc_1.groupby(
+        [OutJournals.COL_03.value[0], OutJournals.COL_04.value[0]]).sum()
+    kashikata_mibaraihiyo = _df_calc_1.groupby(
+        [OutJournals.COL_09.value[0], OutJournals.COL_10.value[0]]).sum()
+
+    _kari_mi = karikata_mibaraihiyo["借方金額(円)"]
+    _kashi_mi = kashikata_mibaraihiyo["貸方金額(円)"]
+
+    _calc_df = pd.concat([_kari_mi, _kashi_mi], axis=1).fillna(0)
+    _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
+
+    _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
+    click.echo(f'_calc_mibaraihiyo: {_calc_mibaraihiyo}')
+
+    karikata_mibaraihiyo: int = _df_calc_1.groupby(
+        OutJournals.COL_03.value[0]).sum().at['未払費用', OutJournals.COL_07.value[0]]
+    kashikata_mibaraihiyo: int = _df_calc_1.groupby(
+        OutJournals.COL_09.value[0]).sum().at['未払費用', OutJournals.COL_13.value[0]]
     mibaraihiyo: int = kashikata_mibaraihiyo - karikata_mibaraihiyo
-    click.echo(mibaraihiyo)
+
+    click.echo(
+        f'{mibaraihiyo}, {kashikata_mibaraihiyo}, {karikata_mibaraihiyo}')
 
     # 未払費用の編集
     _df_edit_1 = _df_calc_1.copy()
-    click.echo(_df_edit_1)
 
-    karikata_index:List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
-    karikata_column:List[int] = [_df_edit_1.columns.tolist().index(i) for i in OutJournals.get_karikata_mibaraihiyo()]
+    karikata_index: List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
+    karikata_column: List[int] = [_df_edit_1.columns.tolist().index(
+        i) for i in OutJournals.get_karikata_mibaraihiyo()]
 
-    kashikata_index:List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用"]
-    click.echo(kashikata_index)
-    kashikata_column:List[int] = [_df_edit_1.columns.tolist().index(i) for i in OutJournals.get_kashikata_mibaraihiyo()]
+    kashikata_index: List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用"]
+    kashikata_column: List[int] = [_df_edit_1.columns.tolist().index(
+        i) for i in OutJournals.get_kashikata_mibaraihiyo()]
 
     _df_edit_1.iloc[karikata_index, karikata_column] = np.NaN
     _df_edit_1.iloc[kashikata_index, kashikata_column] = np.NaN
 
+    click.echo(_df_edit_1)
+
+    _calc_mibaraihiyo_data = get_df_mibaraihiyo(
+        _df_edit_1,
+        _calc_mibaraihiyo,
+        custom_ports.get(CustomItem.DEPARTMENT)
+    )
+
+    _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
+    click.echo(_df_edit_1)
+
+
+def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
     # 未払費用data作成
-    _data_2: List[any] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "給料賃金"]
-    click.echo(f'_data_2: {_data_2}')
+    df_mi = pd.DataFrame(index=[], columns=df.columns)
+    for i, v in df_calc_mibaraihiyo.items():
+        _tmp = df.iloc[0, :].copy()
+        _tmp_df = pd.DataFrame([_tmp])
+        _tmp_df.loc[:, OutJournals.get_karikata_mibaraihiyo()] = np.NaN
 
-    _tmp = _df_edit_1.iloc[_data_2, :].copy()
-    _tmp.iloc[0, karikata_column] = np.NaN
+        _tmp_df[OutJournals.COL_09.value[0]] = "未払費用"
+        _tmp_df[OutJournals.COL_10.value[0]] = i
+        _tmp_df[OutJournals.COL_11.value[0]] = "対象外"
+        _tmp_df[OutJournals.COL_12.value[0]] = department
+        _tmp_df[OutJournals.COL_13.value[0]] = v
 
-    _tmp[OutJournals.COL_09.value[0]] = "未払費用"
-    _tmp[OutJournals.COL_11.value[0]] = "対象外"
-    _tmp[OutJournals.COL_12.value[0]] = custom_ports.get(CustomItem.DEPARTMENT)
-    _tmp[OutJournals.COL_13.value[0]] = mibaraihiyo
+        df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
-    click.echo(_tmp)
-    click.echo(_df_edit_1.append(_tmp, ignore_index=True))
- 
+    return df_mi
+
+
 def csv_eval(row):
     f_string = "f'" + row + "'"
     click.echo(f'f_string: {f_string}')
