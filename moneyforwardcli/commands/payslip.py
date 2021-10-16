@@ -77,6 +77,28 @@ class OutJournals(Enum):
     def csv_header(cls):
         return [i.value[0] for i in cls]
 
+    @classmethod
+    def get_karikata_mibaraihiyou_list(cls):
+        _lst = [
+            cls.COL_03,
+            cls.COL_04,
+            cls.COL_05,
+            cls.COL_06,
+            cls.COL_07,
+            cls.COL_08]
+        return [i.value[0] for i in _lst]
+
+    @classmethod
+    def get_kashikata_mibaraihiyou_list(cls):
+        _lst = [
+            cls.COL_09,
+            cls.COL_10,
+            cls.COL_11,
+            cls.COL_12,
+            cls.COL_13,
+            cls.COL_14]
+        return [i.value[0] for i in _lst]
+
     def __str__(self):
         return f'name: {self.name}, value: {self.value}'
 
@@ -138,28 +160,59 @@ def to_journal_csv(filename):
                           CustomItem.DEPARTMENT.value].to_dict()
     click.echo([i.value for i in OutJournals])
 
-    i_rows = []
+    _data = []
     for mp_key in monthly_payslip.keys():
         _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], monthly_payslip[mp_key], custom_dic)
               for i in OutJournals if mp_key in df_custom_print.index.values]
 
         if len(_p):
-            i_rows.append(_p)
+            _data.append(_p)
 
-    click.echo(i_rows)
-    df_i_rows = pd.DataFrame(i_rows, columns=OutJournals.csv_header())
+    df_for_sum = pd.DataFrame(_data, columns=OutJournals.csv_header())
 
-    click.echo(df_i_rows)
-    df_i_rows = df_i_rows.astype({OutJournals.COL_07.value[0]: int})
-    click.echo(df_i_rows.groupby(OutJournals.COL_03.value[0]).sum())
-    df_i_rows = df_i_rows.astype({OutJournals.COL_13.value[0]: int})
-    click.echo(df_i_rows.groupby(OutJournals.COL_09.value[0]).sum())
+    # 借方の未払費用合計
+    df_for_sum = df_for_sum.astype({OutJournals.COL_07.value[0]: int})
+    karikata_mibaraihiyo = df_for_sum.groupby(
+        OutJournals.COL_03.value[0]).sum().at["未払費用", OutJournals.COL_07.value[0]]
+    click.echo(karikata_mibaraihiyo)
 
-    # click.echo(df_i_rows.query('借方勘定科目=="未払費用" or 貸方勘定科目=="未払費用"'))
+    # 貸方の未払費用合計
+    df_for_sum = df_for_sum.astype({OutJournals.COL_13.value[0]: int})
+    kashikata_mibaraihiyo = df_for_sum.groupby(
+        OutJournals.COL_09.value[0]).sum().at["未払費用", OutJournals.COL_13.value[0]]
+    click.echo(kashikata_mibaraihiyo)
 
-    _df_i_rows = pd.DataFrame(i_rows, columns=OutJournals.csv_header())
-    _df_i_rows["借方勘定科目"] = _df_i_rows["借方勘定科目"].replace(["未払費用"], [""])
-    click.echo(_df_i_rows)
+    kashikata_mibaraihiyo = kashikata_mibaraihiyo - karikata_mibaraihiyo
+    click.echo(kashikata_mibaraihiyo)
+
+    # 借方の未払費用をNaN埋め
+    df_update_nan = pd.DataFrame(_data, columns=OutJournals.csv_header())
+    _list_df_idx = df_update_nan.index[
+        df_update_nan[OutJournals.COL_03.value[0]] == "未払費用"
+    ].tolist()
+    _list_df_col_kari = [df_update_nan.columns.tolist().index(i)
+                         for i in OutJournals.get_karikata_mibaraihiyou_list()]
+    df_update_nan.iloc[_list_df_idx, _list_df_col_kari] = np.nan
+
+    # 貸方の未払費用をNaN埋め
+    _list_df_idx = df_update_nan.index[
+        df_update_nan[OutJournals.COL_09.value[0]] == "未払費用"
+    ].tolist()
+    _list_df_col_kashi = [df_update_nan.columns.tolist().index(i)
+                          for i in OutJournals.get_kashikata_mibaraihiyou_list()]
+    df_update_nan.iloc[_list_df_idx, _list_df_col_kashi] = np.nan
+
+    click.echo(df_update_nan)
+
+    # 未払費用の追加データ作成
+    cp_df = pd.DataFrame(df_update_nan.iloc[0, :])
+    cp_df.iloc[_list_df_col_kari] = np.nan
+    cp_df.at[OutJournals.COL_09.value[0]] = "未払費用"
+    cp_df.at[OutJournals.COL_13.value[0]] = karikata_mibaraihiyo
+    click.echo(cp_df)
+
+    result_df = df_update_nan.append(cp_df)
+    click.echo(result_df)
 
 
 def csv_eval(row):
