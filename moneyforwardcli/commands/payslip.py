@@ -1,4 +1,3 @@
-from types import LambdaType
 import click
 import csv
 import io
@@ -65,7 +64,8 @@ class OutJournals(Enum):
             return custom_item[CustomItem.DEPARTMENT.value]
 
         if self is self.COL_15:
-            return custom_item[CustomItem.SALARY_PAYMENT_DATE.value]
+            # csv_eval(custom_item[CustomItem.SALARY_PAYMENT_DATE.value])
+            return csv_eval(print_env_val, custom_item)
 
         if self is self.COL_07 or self is self.COL_13:
             return print_payroll_val
@@ -104,8 +104,32 @@ class OutJournals(Enum):
     def __str__(self):
         return f'name: {self.name}, value: {self.value}'
 
-    def __repr__(self):
-        return f'name: {self.name}, value: {self.value}'
+
+def csv_eval(row, custom_item):
+    f_string = "f'" + row + "'"
+    click.echo(f'f_string: {f_string}')
+
+    exec_f = eval(
+        f_string, None, {
+            'yyyymm': to_jp_year_name(custom_item[CustomItem.SALARY_PAYMENT_DATE.value]),
+            'sal_kbn': "給与",
+            'depertment': custom_item[CustomItem.DEPARTMENT.value]
+        }
+    )
+    click.echo(exec_f)
+    return exec_f
+
+
+def to_jp_year_name(yyyymmdd):
+    _d = yyyymmdd.split('/')
+
+    yyyy = int(_d[0])
+    mm = _d[1].zfill(2)
+
+    if yyyy > 2018:
+        return f'令和{str(yyyy - 2018).zfill(2)}年{mm}月度'
+    else:
+        return f'{str(yyyy)}年{mm}月度'
 
 
 class CustomItem(Enum):
@@ -113,6 +137,8 @@ class CustomItem(Enum):
     SALARY_PAYMENT_DATE = "給与支払日"
     PAYROLL_CLOSING_DATE = "給与計算締日"
     DEPARTMENT = "部門"
+    # 給与or賞与
+    SALARY_KBN = ""
 
 
 @payslip.command()
@@ -273,15 +299,6 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
     return df_mi
-
-
-def csv_eval(row):
-    f_string = "f'" + row + "'"
-    click.echo(f'f_string: {f_string}')
-
-    exec_f = eval(f_string, None, {'yyyymm': "2021年7月度", 'depertment': "部門A"})
-    click.echo(exec_f)
-    return exec_f
 
 
 class CsvCustom:
