@@ -1,17 +1,19 @@
-import click
-import csv
+"""
+マネーフォワードクラウド会計 給与オリジナル仕訳CSV出力
+"""
 import io
-import pandas as pd
+import csv
 import re
-from datetime import datetime as dt, timedelta
-from pytz import timezone
-from dateutil.relativedelta import relativedelta
+from datetime import datetime as dt
 import logging
-import click_logging
-from monthdelta import monthmod
 from enum import Enum
-import numpy as np
 from typing import List
+import click
+import pandas as pd
+from pandas.core.frame import DataFrame
+from dateutil.relativedelta import relativedelta
+import click_logging
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -20,10 +22,13 @@ click_logging.basic_config(logger)
 
 @click.group()
 def payslip():
-    pass
+    """actionコマンド
+    """
 
 
 class OutJournals(Enum):
+    """出力仕訳CSVクラス
+    """
     COL_01 = ("取引No", "")
     COL_02 = ("取引日", "")
     COL_03 = ("借方勘定科目", "")
@@ -106,6 +111,9 @@ class OutJournals(Enum):
 
 
 def csv_eval(row, custom_item):
+    if type(row) != str:
+        return ""
+
     f_string = "f'" + row + "'"
     click.echo(f'f_string: {f_string}')
 
@@ -133,34 +141,33 @@ def to_jp_year_name(yyyymmdd):
 
 
 class CustomItem(Enum):
+    """クラスItem"""
     START_DATE = 0
     SALARY_PAYMENT_DATE = "給与支払日"
     PAYROLL_CLOSING_DATE = "給与計算締日"
     DEPARTMENT = "部門"
-    # 給与or賞与
-    SALARY_KBN = ""
+
+
+COL_PAYROLL_EMPLOYEE_INFO = 7
 
 
 @payslip.command()
 @click.argument("filename", type=click.File(encoding="shift_jis"))
 @click_logging.simple_verbosity_option(logger)
 def to_journal_csv(filename):
-
-    # 賃金台帳の各種従業員情報の最終行
-    COL_PAYROLL_EMPLOYEE_INFO = 7
+    """賃金台帳の各種従業員情報の最終行
+    """
 
     header = ""
     body = ""
 
-    for i, f in enumerate(filename):
+    for i, line in enumerate(filename):
         if i < COL_PAYROLL_EMPLOYEE_INFO:
-            header += f
+            header += line
         else:
-            body += f
+            body += line
 
     head_reader = csv.reader(io.StringIO(header))
-
-    reader = CsvCustom(header, body)
 
     custom_ports = get_custom_parts(head_reader)
 
@@ -174,26 +181,24 @@ def to_journal_csv(filename):
     _dict_df = dict_df["2020年07月度"]
     _dict_df.replace("0", np.nan)
 
-    click.echo(f'_dict_df: {_dict_df}')
-    click.echo(f'type(_dict_df): {type(_dict_df)}')
-    click.echo(f'_dict_df.to_dict(): {_dict_df.to_dict()}')
-    click.echo(f'_dict_df.index: {_dict_df.index}')
-    click.echo(f'_dict_df.index.values: {_dict_df.index.values}')
-
-    df_custom_print = pd.read_csv("./.env/csv.csv", index_col=0)
-    click.echo(f'df_custom_print: {df_custom_print}')
+    df_custom_print: DataFrame = pd.read_csv("./.env/csv.csv", index_col=0)
 
     monthly_payslip = _dict_df.to_dict()
-    click.echo(
-        f'_dict_df[CustomItem.SALARY_PAYMENT_DATE.value:CustomItem.DEPARTMENT.value], {_dict_df[CustomItem.SALARY_PAYMENT_DATE.value:CustomItem.DEPARTMENT.value]}')
 
     custom_dic = _dict_df[CustomItem.SALARY_PAYMENT_DATE.value:
                           CustomItem.DEPARTMENT.value].to_dict()
 
+    _index = df_custom_print.index
     _data = []
     for mp_key in monthly_payslip.keys():
-        _p = [i.select_val(df_custom_print.at[mp_key, i.value[0]], monthly_payslip[mp_key], custom_dic)
-              for i in OutJournals if mp_key in df_custom_print.index.values]
+        _p = [
+            i.select_val(
+                df_custom_print.at[mp_key, i.value[0]],
+                monthly_payslip[mp_key],
+                custom_dic
+            )
+            for i in OutJournals if mp_key in _index.values
+        ]
 
         if len(_p):
             _data.append(_p)
@@ -301,105 +306,6 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
     return df_mi
 
 
-class CsvCustom:
-    header = [""]
-    custom_row = [
-        [CustomItem.SALARY_PAYMENT_DATE.value],
-        [CustomItem.PAYROLL_CLOSING_DATE.value],
-        [CustomItem.DEPARTMENT.value]
-    ]
-
-    items = {}
-
-    def __init__(self, head, body):
-        self.reader = csv.reader(io.StringIO(body))
-
-    def create_items(self):
-        for i, r in enumerate(self.reader):
-            if i == 0:
-                _o = [i.split("\n") for i in r]
-                logger.debug(f"_o: {_o}")
-
-                for i, data in enumerate(_o):
-                    # 空（一番先頭のnullのケース）
-                    if len(data) == 1 and not data[0]:
-                        continue
-
-                    # 月度項目のケース（月日の文字列編集）
-                    if len(data) > 1 and "月度" in data[0]:
-                        num_start_month = int(re.sub(r'[ 月度]', r'', data[0]))
-
-                        logger.debug(
-                            f"num_start_month: {num_start_month}, data[1]: {data[1]}")
-
-                        cnt_month = i - 1
-                        dt_base = custom_parts.get(
-                            CustomItem.START_DATE) + relativedelta(months=cnt_month)
-                        dt_pay = (
-                            dt_base +
-                            relativedelta(months=1) -
-                            relativedelta(days=1)
-                        )
-
-                        if num_start_month != int(dt.strftime(dt_pay, "%m")):
-                            logger.error("CSVヘッダー月不整合")
-                            exit(1)
-
-                        self.header.append(dt.strftime(dt_pay, "%Y年%m月度"))
-                        custom_row[0].append(dt.strftime(dt_pay, "%Y/%m/%d"))
-                        custom_row[1].append(
-                            dt.strftime(
-                                dt_base -
-                                relativedelta(
-                                    days=1),
-                                "%Y/%m/%d"))
-                        custom_row[2].append(
-                            custom_parts.get(
-                                CustomItem.DEPARTMENT))
-
-                        continue
-
-                    # 賞与があるケース
-                    if len(data) > 1 and data[0] == "賞与":
-                        header.append(f"賞与 {data[1]}")
-                        dt_bounus_base = dt.strptime(data[1], "%Y/%m/%d")
-                        dt_bounus_pay = (
-                            dt_bounus_base +
-                            relativedelta(days=1) +
-                            relativedelta(months=1) -
-                            relativedelta(days=1)
-                        )
-                        custom_row[0].append(dt.strftime(
-                            dt_bounus_pay, "%Y/%m/%d"))
-                        custom_row[1].append(data[1])
-                        custom_row[2].append(
-                            custom_parts.get(
-                                CustomItem.DEPARTMENT))
-
-                        continue
-
-                    # 最終の項目の合計
-                    if len(data) == 1 and data[0] == "合計":
-                        header.append(data[0])
-                        custom_row[0].append("")
-                        custom_row[1].append("")
-                        custom_row[2].append(
-                            custom_parts.get(
-                                CustomItem.DEPARTMENT))
-
-                        continue
-
-                    # すべてのifをこえてこれが実行されると考慮外のケースがありうる
-                    logger.error(f"考慮漏れ項目の可能性があります。 data: {data}")
-                    exit(1)
-
-    custom_rows = ""
-    for i in [header, custom_row[0], custom_row[1], custom_row[2]]:
-        custom_rows += (",".join(i) + "\n")
-
-    logger.debug(f"custom_rows: {custom_rows}")
-
-
 def create_custom_date(body, custom_parts):
     header = [""]
     custom_row_1 = [CustomItem.SALARY_PAYMENT_DATE.value]
@@ -502,8 +408,16 @@ def get_custom_parts(head_reader):
     return {
         CustomItem.START_DATE: get_start_date(head_reader),
         CustomItem.DEPARTMENT: get_depertment(head_reader),
-        CustomItem.PAYROLL_CLOSING_DATE: ""
+        CustomItem.PAYROLL_CLOSING_DATE: "",
+        'sal_kbn': get_sal_kbn(head_reader)
     }
+
+
+def get_sal_kbn(head_reader):
+    for row in head_reader:
+        click.echo(row)
+    click.echo('aaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    return head_reader
 
 
 def get_start_date(head_reader):
