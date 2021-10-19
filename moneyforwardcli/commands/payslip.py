@@ -27,7 +27,7 @@ def payslip():
 
 
 class OutJournals(Enum):
-    """出力仕訳CSVクラス
+    """出力CSV仕訳enum
     """
     COL_01 = ("取引No", "")
     COL_02 = ("取引日", "")
@@ -111,7 +111,7 @@ class OutJournals(Enum):
 
 
 def csv_eval(row, custom_item):
-    if type(row) != str:
+    if not isinstance(row, str):
         return ""
 
     f_string = "f'" + row + "'"
@@ -136,12 +136,12 @@ def to_jp_year_name(yyyymmdd):
 
     if yyyy > 2018:
         return f'令和{str(yyyy - 2018).zfill(2)}年{mm}月度'
-    else:
-        return f'{str(yyyy)}年{mm}月度'
+
+    return f'{str(yyyy)}年{mm}月度'
 
 
 class CustomItem(Enum):
-    """クラスItem"""
+    """Enum """
     START_DATE = 0
     SALARY_PAYMENT_DATE = "給与支払日"
     PAYROLL_CLOSING_DATE = "給与計算締日"
@@ -169,16 +169,22 @@ def to_journal_csv(filename):
 
     head_reader = csv.reader(io.StringIO(header))
 
+    for iii in head_reader:
+        click.echo('aaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        click.echo(iii)
+
     custom_ports = get_custom_parts(head_reader)
 
-    custom_rows = create_custom_date(body, custom_ports)
+    custom_rows = create_custom_data(body, custom_ports)
     body = custom_rows + body
 
     df = pd.read_csv(io.StringIO(body), index_col=0)
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df.iteritems()}
 
-    _dict_df = dict_df["2020年07月度"]
+    click.echo(dict_df)
+
+    _dict_df = dict_df["賞与 2021/06/30"]
     _dict_df.replace("0", np.nan)
 
     df_custom_print: DataFrame = pd.read_csv("./.env/csv.csv", index_col=0)
@@ -306,7 +312,7 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
     return df_mi
 
 
-def create_custom_date(body, custom_parts):
+def create_custom_data(body, custom_parts):
     header = [""]
     custom_row_1 = [CustomItem.SALARY_PAYMENT_DATE.value]
     custom_row_2 = [CustomItem.PAYROLL_CLOSING_DATE.value]
@@ -390,16 +396,9 @@ def create_custom_date(body, custom_parts):
                 logger.error(f"考慮漏れ項目の可能性があります。 data: {data}")
                 exit(1)
 
-    logger.debug(f"header: {header}")
-    logger.debug(f"custom_row_1: {custom_row_1}")
-    logger.debug(f"custom_row_2: {custom_row_2}")
-    logger.debug(f"custom_row_3: {custom_row_3}")
-
     custom_rows = ""
     for i in [header, custom_row_1, custom_row_2, custom_row_3]:
         custom_rows += (",".join(i) + "\n")
-
-    logger.debug(f"custom_rows: {custom_rows}")
 
     return custom_rows
 
@@ -409,14 +408,13 @@ def get_custom_parts(head_reader):
         CustomItem.START_DATE: get_start_date(head_reader),
         CustomItem.DEPARTMENT: get_depertment(head_reader),
         CustomItem.PAYROLL_CLOSING_DATE: "",
-        'sal_kbn': get_sal_kbn(head_reader)
+        'sal_kbn': get_salary_kbn(head_reader)
     }
 
 
 def get_sal_kbn(head_reader):
     for row in head_reader:
         click.echo(row)
-    click.echo('aaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
     return head_reader
 
 
@@ -438,3 +436,13 @@ def get_depertment(head_reader):
             return row[1]
 
     logger.error("get_depertment")
+
+
+def get_salary_kbn(head_reader):
+    for row in head_reader:
+        click.echo('aaaaaaaaaaaaaaa')
+        click.echo(row)
+        if "賞与" in row:
+            return "賞与"
+
+    return "給与"
