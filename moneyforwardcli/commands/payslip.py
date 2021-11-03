@@ -167,13 +167,9 @@ def to_journal_csv(filename):
         else:
             body += line
 
-    head_reader = csv.reader(io.StringIO(header))
+    df_head = pd.read_csv(io.StringIO(header))
 
-    for iii in head_reader:
-        click.echo('aaaaaaaaaaaaaaaaaaaaaaaaaaaa')
-        click.echo(iii)
-
-    custom_ports = get_custom_parts(head_reader)
+    custom_ports = get_custom_parts(df_head)
 
     custom_rows = create_custom_data(body, custom_ports)
     body = custom_rows + body
@@ -181,8 +177,6 @@ def to_journal_csv(filename):
     df = pd.read_csv(io.StringIO(body), index_col=0)
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df.iteritems()}
-
-    click.echo(dict_df)
 
     _dict_df = dict_df["賞与 2021/06/30"]
     _dict_df.replace("0", np.nan)
@@ -319,12 +313,12 @@ def create_custom_data(body, custom_parts):
     custom_row_3 = [CustomItem.DEPARTMENT.value]
 
     reader = csv.reader(io.StringIO(body))
-    for i, r in enumerate(reader):
-        if i == 0:
-            _o = [i.split("\n") for i in r]
-            logger.debug(f"_o: {_o}")
+    for reader_index, r in enumerate(reader):
+        if reader_index == 0:
+            row_list = [i.split("\n") for i in r]
+            logger.debug(f"row_list: {row_list}")
 
-            for i, data in enumerate(_o):
+            for row_list_index, data in enumerate(row_list):
                 # 空（一番先頭のnullのケース）
                 if len(data) == 1 and not data[0]:
                     continue
@@ -336,7 +330,8 @@ def create_custom_data(body, custom_parts):
                     logger.debug(
                         f"num_start_month: {num_start_month}, data[1]: {data[1]}")
 
-                    cnt_month = i - 1
+                    cnt_month = row_list_index - 1
+
                     dt_base = custom_parts.get(
                         CustomItem.START_DATE) + relativedelta(months=cnt_month)
                     dt_pay = (
@@ -403,46 +398,24 @@ def create_custom_data(body, custom_parts):
     return custom_rows
 
 
-def get_custom_parts(head_reader):
+def get_custom_parts(df_head):
     return {
-        CustomItem.START_DATE: get_start_date(head_reader),
-        CustomItem.DEPARTMENT: get_depertment(head_reader),
+        CustomItem.START_DATE: get_start_date(df_head),
+        CustomItem.DEPARTMENT: df_head.at['部門', '賃金台帳'],
         CustomItem.PAYROLL_CLOSING_DATE: "",
-        'sal_kbn': get_salary_kbn(head_reader)
+        'sal_kbn': get_salary_kbn(df_head)
     }
 
 
-def get_sal_kbn(head_reader):
-    for row in head_reader:
-        click.echo(row)
-    return head_reader
+def get_start_date(df_head):
+    date_string = re.sub(r'（(.*) 〜 .*）', r'\1', df_head.at['集計期間', '賃金台帳'])
+    start_dt = dt.strptime(date_string, "%Y年%m月%d日")
+    logger.debug(f"start_dt: {start_dt}")
+    return start_dt
 
 
-def get_start_date(head_reader):
-    for row in head_reader:
-        if "集計期間" in row[0]:
-            _sdt = re.sub(r'（(.*) 〜 .*）', r'\1', row[1])
-            start_dt = dt.strptime(_sdt, "%Y年%m月%d日")
-            logger.debug(f"start_dt: {start_dt}")
-            return start_dt
-
-    logger.error("get_start_date")
-
-
-def get_depertment(head_reader):
-    for row in head_reader:
-        if "部門" in row:
-            click.echo(f'row[1]: {row[1]}')
-            return row[1]
-
-    logger.error("get_depertment")
-
-
-def get_salary_kbn(head_reader):
-    for row in head_reader:
-        click.echo('aaaaaaaaaaaaaaa')
-        click.echo(row)
-        if "賞与" in row:
-            return "賞与"
+def get_salary_kbn(df_head):
+    if "賞与" in df_head.at['集計期間', '賃金台帳']:
+        return "賞与"
 
     return "給与"
