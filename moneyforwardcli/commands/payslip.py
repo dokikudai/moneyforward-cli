@@ -2,7 +2,6 @@
 マネーフォワードクラウド会計 給与オリジナル仕訳CSV出力
 """
 import io
-import csv
 import re
 from datetime import datetime as dt
 import logging
@@ -18,6 +17,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 click_logging.basic_config(logger)
+
+COL_PAYROLL_EMPLOYEE_INFO: int = 7
 
 
 @click.group()
@@ -146,9 +147,16 @@ class CustomItem(Enum):
     SALARY_PAYMENT_DATE = "給与支払日"
     PAYROLL_CLOSING_DATE = "給与計算締日"
     DEPARTMENT = "部門"
+    SALARY_KBN = "給与・賞与区分"
 
-
-COL_PAYROLL_EMPLOYEE_INFO = 7
+    @classmethod
+    def get_create_customs(cls):
+        return [
+            cls.SALARY_PAYMENT_DATE,
+            cls.PAYROLL_CLOSING_DATE,
+            cls.DEPARTMENT,
+            cls.SALARY_KBN
+        ]
 
 
 @payslip.command()
@@ -158,23 +166,24 @@ def to_journal_csv(filename):
     """賃金台帳の各種従業員情報の最終行
     """
 
-    header = ""
-    body = ""
+    _header: str = ""
+    _body: str = ""
 
     for i, line in enumerate(filename):
         if i < COL_PAYROLL_EMPLOYEE_INFO:
-            header += line
+            _header += line
         else:
-            body += line
+            _body += line
 
-    df_head = pd.read_csv(io.StringIO(header))
+    df_head = pd.read_csv(io.StringIO(_header))
+    csv_info = get_csv_info(df_head)
 
-    custom_ports = get_custom_parts(df_head)
+    df_body = pd.read_csv(io.StringIO(_body))
 
-    custom_rows = create_custom_data(body, custom_ports)
-    body = custom_rows + body
+    custom_rows = create_custom_data(df_body, csv_info)
+    _body = custom_rows + _body
 
-    df = pd.read_csv(io.StringIO(body), index_col=0)
+    df = pd.read_csv(io.StringIO(_body), index_col=0)
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df.iteritems()}
 
@@ -280,7 +289,7 @@ def to_journal_csv(filename):
     _calc_mibaraihiyo_data = get_df_mibaraihiyo(
         _df_edit_1,
         _calc_mibaraihiyo,
-        custom_ports.get(CustomItem.DEPARTMENT)
+        csv_info.get(CustomItem.DEPARTMENT)
     )
 
     _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
@@ -306,99 +315,92 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
     return df_mi
 
 
-def create_custom_data(body, custom_parts):
-    header = [""]
-    custom_row_1 = [CustomItem.SALARY_PAYMENT_DATE.value]
-    custom_row_2 = [CustomItem.PAYROLL_CLOSING_DATE.value]
-    custom_row_3 = [CustomItem.DEPARTMENT.value]
+def create_custom_data(df_body: DataFrame, csv_info):
 
-    reader = csv.reader(io.StringIO(body))
-    for reader_index, r in enumerate(reader):
-        if reader_index == 0:
-            row_list = [i.split("\n") for i in r]
-            logger.debug(f"row_list: {row_list}")
+    customs: dict = {}
 
-            for row_list_index, data in enumerate(row_list):
-                # 空（一番先頭のnullのケース）
-                if len(data) == 1 and not data[0]:
-                    continue
+    row_list = [i.split("\n") for i in df_body.columns]
+    logger.debug(f"row_list: {row_list}")
 
-                # 月度項目のケース（月日の文字列編集）
-                if len(data) > 1 and "月度" in data[0]:
-                    num_start_month = int(re.sub(r'[ 月度]', r'', data[0]))
+    for row_list_index, data in enumerate(row_list):
+        # 空（一番先頭のnullのケース）
+        if len(data) == 1 and data[0] == 'Unnamed: 0':
+            continue
 
-                    logger.debug(
-                        f"num_start_month: {num_start_month}, data[1]: {data[1]}")
+        # 月度項目のケース（月日の文字列編集）
+        if len(data) > 1 and "月度" in data[0]:
+            num_start_month = int(re.sub(r'[ 月度]', r'', data[0]))
 
-                    cnt_month = row_list_index - 1
+            logger.debug(
+                f"num_start_month: {num_start_month}, data[1]: {data[1]}")
 
-                    dt_base = custom_parts.get(
-                        CustomItem.START_DATE) + relativedelta(months=cnt_month)
-                    dt_pay = (
-                        dt_base +
-                        relativedelta(months=1) -
-                        relativedelta(days=1)
-                    )
+            cnt_month = row_list_index - 1
 
-                    if num_start_month != int(dt.strftime(dt_pay, "%m")):
-                        logger.error("CSVヘッダー月不整合")
-                        exit(1)
+            dt_base = csv_info.get(
+                CustomItem.START_DATE) + relativedelta(months=cnt_month)
+            dt_pay = (
+                dt_base +
+                relativedelta(months=1) -
+                relativedelta(days=1)
+            )
 
-                    header.append(dt.strftime(dt_pay, "%Y年%m月度"))
-                    custom_row_1.append(dt.strftime(dt_pay, "%Y/%m/%d"))
-                    custom_row_2.append(
-                        dt.strftime(
-                            dt_base -
-                            relativedelta(
-                                days=1),
-                            "%Y/%m/%d"))
-                    custom_row_3.append(
-                        custom_parts.get(
-                            CustomItem.DEPARTMENT))
-
-                    continue
-
-                # 賞与があるケース
-                if len(data) > 1 and data[0] == "賞与":
-                    header.append(f"賞与 {data[1]}")
-                    dt_bounus_base = dt.strptime(data[1], "%Y/%m/%d")
-                    dt_bounus_pay = (
-                        dt_bounus_base +
-                        relativedelta(days=1) +
-                        relativedelta(months=1) -
-                        relativedelta(days=1)
-                    )
-                    custom_row_1.append(dt.strftime(dt_bounus_pay, "%Y/%m/%d"))
-                    custom_row_2.append(data[1])
-                    custom_row_3.append(
-                        custom_parts.get(
-                            CustomItem.DEPARTMENT))
-
-                    continue
-
-                # 最終の項目の合計
-                if len(data) == 1 and data[0] == "合計":
-                    header.append(data[0])
-                    custom_row_1.append("")
-                    custom_row_2.append("")
-                    custom_row_3.append(
-                        custom_parts.get(
-                            CustomItem.DEPARTMENT))
-
-                    continue
-
-                # すべてのifをこえてこれが実行されると考慮外のケースがありうる
-                logger.error(f"考慮漏れ項目の可能性があります。 data: {data}")
+            if num_start_month != int(dt.strftime(dt_pay, "%m")):
+                logger.error("CSVヘッダー月不整合")
                 exit(1)
 
-    custom_rows = ""
-    for i in [header, custom_row_1, custom_row_2, custom_row_3]:
-        custom_rows += (",".join(i) + "\n")
+            customs[dt.strftime(dt_pay, "%Y年%m月度")] = [
+                dt.strftime(dt_pay, "%Y/%m/%d"),
+                dt.strftime(
+                    dt_base - relativedelta(days=1), "%Y/%m/%d"
+                ),
+                csv_info.get(CustomItem.DEPARTMENT),
+                "給与"
+            ]
+            continue
 
-    return custom_rows
+        # 賞与があるケース
+        if len(data) > 1 and data[0] == "賞与":
+            dt_bounus_base = dt.strptime(data[1], "%Y/%m/%d")
+            dt_bounus_pay = (
+                dt_bounus_base +
+                relativedelta(days=1) +
+                relativedelta(months=1) -
+                relativedelta(days=1)
+            )
+            customs[f"賞与 {data[1]}"] = [
+                dt.strftime(dt_bounus_pay, "%Y/%m/%d"),
+                data[1],
+                csv_info.get(CustomItem.DEPARTMENT),
+                "賞与"
+            ]
+            continue
+
+        # 最終の項目の合計
+        if len(data) == 1 and data[0] == "合計":
+            customs[data[0]] = [
+                "",
+                "",
+                csv_info.get(CustomItem.DEPARTMENT),
+                ""
+            ]
+            continue
+
+        # すべてのifをこえてこれが実行されると考慮外のケースがありうる
+        logger.error(f"考慮漏れ項目の可能性があります。 data: {data}")
+        exit(1)
+
+    # data の customs は一度 X, Y を入れ替えてリスト化
+    # （データの作り方が微妙だったかも）
+    df_custom: DataFrame = pd.DataFrame(
+        data=np.array(list(customs.values())).T,
+        index=[i.value for i in CustomItem.get_create_customs()],
+        columns=list(customs.keys())
+    )
+
+    return df_custom.to_csv()
 
 
-def get_custom_parts(df_head):
+def get_csv_info(df_head):
     return {
         CustomItem.START_DATE: get_start_date(df_head),
         CustomItem.DEPARTMENT: df_head.at['部門', '賃金台帳'],
