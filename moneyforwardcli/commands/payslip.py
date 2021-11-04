@@ -194,7 +194,7 @@ def to_journal_csv(filename):
     monthly_payslip = _dict_df.to_dict()
 
     custom_dic = _dict_df[
-        CustomItem.SALARY_PAYMENT_DATE.value : CustomItem.SALARY_KBN.value
+        CustomItem.SALARY_PAYMENT_DATE.value: CustomItem.SALARY_KBN.value
     ].to_dict()
 
     click.echo(f'aaaaaaaaaaaaaaaaaa: {custom_dic}')
@@ -296,7 +296,7 @@ def to_journal_csv(filename):
     )
 
     _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
-    click.echo(_df_edit_1)
+    click.echo(_df_edit_1.to_csv(index=False))
 
 
 def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
@@ -363,7 +363,7 @@ def create_custom_data(df_body: DataFrame, csv_info):
                 csv_info.get(CustomItem.DEPARTMENT),
                 "給与"
             ]
-            
+
             continue
 
         # 賞与があるケース
