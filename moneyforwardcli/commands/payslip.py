@@ -2,6 +2,7 @@
 マネーフォワードクラウド会計 給与オリジナル仕訳CSV出力
 """
 import io
+import csv
 import re
 from datetime import datetime as dt
 import logging
@@ -116,7 +117,6 @@ def csv_eval(row, custom_item):
         return ""
 
     f_string = "f'" + row + "'"
-    click.echo(f'f_string: {f_string}')
 
     exec_f = eval(
         f_string, None, {
@@ -125,7 +125,6 @@ def csv_eval(row, custom_item):
             'depertment': custom_item[CustomItem.DEPARTMENT.value]
         }
     )
-    click.echo(exec_f)
     return exec_f
 
 
@@ -197,9 +196,7 @@ def to_journal_csv(filename):
         CustomItem.SALARY_PAYMENT_DATE.value: CustomItem.SALARY_KBN.value
     ].to_dict()
 
-    click.echo(f'aaaaaaaaaaaaaaaaaa: {custom_dic}')
-
-    df_custom_print: DataFrame = pd.read_csv("./.env/csv.csv", index_col=0)
+    df_custom_print: DataFrame = pd.read_csv("./.env/csv.csv", index_col=0, encoding="shift-jis")
     _index = df_custom_print.index
     _data = []
     for mp_key in monthly_payslip.keys():
@@ -214,8 +211,6 @@ def to_journal_csv(filename):
 
         if len(_p):
             _data.append(_p)
-
-    click.echo(_data)
 
     # マイナスデータの借方/貸方入れ替え
     _df_calc_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
@@ -233,21 +228,13 @@ def to_journal_csv(filename):
     _select_minus[OutJournals.COL_13.value[0]
                   ] = _select_minus[OutJournals.COL_13.value[0]] * -1
 
-    click.echo(_select_minus)
-
     _kari_data = _select_minus[OutJournals.get_karikata_mibaraihiyo()]
     _kashi_data = _select_minus[OutJournals.get_kashikata_mibaraihiyo()]
-
-    click.echo(_kashi_data)
 
     _select_minus[OutJournals.get_karikata_mibaraihiyo()] = _kashi_data
     _select_minus[OutJournals.get_kashikata_mibaraihiyo()] = _kari_data
 
-    click.echo(_select_minus)
-
     _df_calc_1.iloc[_select_minus.index.tolist()] = _select_minus.copy()
-
-    click.echo(_df_calc_1)
 
     # 未払費用の計算
     karikata_mibaraihiyo = _df_calc_1.groupby(
@@ -262,16 +249,6 @@ def to_journal_csv(filename):
     _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
 
     _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
-    click.echo(f'_calc_mibaraihiyo: {_calc_mibaraihiyo}')
-
-    karikata_mibaraihiyo: int = _df_calc_1.groupby(
-        OutJournals.COL_03.value[0]).sum().at['未払費用', OutJournals.COL_07.value[0]]
-    kashikata_mibaraihiyo: int = _df_calc_1.groupby(
-        OutJournals.COL_09.value[0]).sum().at['未払費用', OutJournals.COL_13.value[0]]
-    mibaraihiyo: int = kashikata_mibaraihiyo - karikata_mibaraihiyo
-
-    click.echo(
-        f'{mibaraihiyo}, {kashikata_mibaraihiyo}, {karikata_mibaraihiyo}')
 
     # 未払費用の編集
     _df_edit_1 = _df_calc_1.copy()
@@ -287,8 +264,6 @@ def to_journal_csv(filename):
     _df_edit_1.iloc[karikata_index, karikata_column] = np.NaN
     _df_edit_1.iloc[kashikata_index, kashikata_column] = np.NaN
 
-    click.echo(_df_edit_1)
-
     _calc_mibaraihiyo_data = get_df_mibaraihiyo(
         _df_edit_1,
         _calc_mibaraihiyo,
@@ -296,7 +271,7 @@ def to_journal_csv(filename):
     )
 
     _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
-    click.echo(_df_edit_1.to_csv(index=False))
+    click.echo(_df_edit_1.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
 
 def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
@@ -368,16 +343,17 @@ def create_custom_data(df_body: DataFrame, csv_info):
 
         # 賞与があるケース
         if len(monthly_val) > 1 and monthly_val[0] == "賞与":
-            dt_bounus_base = dt.strptime(monthly_val[1], "%Y/%m/%d")
-            dt_bounus_pay = (
-                dt_bounus_base +
-                relativedelta(days=1) +
-                relativedelta(months=1) -
-                relativedelta(days=1)
+
+            logger.debug(
+                f"monthly_val[1]: {monthly_val[1]}")
+
+            dt_bounus_pay = dt.strptime(monthly_val[1], "%Y/%m/%d")
+            dt_bounus_base = (
+                dt_bounus_pay.replace(day=1) - relativedelta(days=1)
             )
             df_custom[f"賞与 {monthly_val[1]}"] = [
                 dt.strftime(dt_bounus_pay, "%Y/%m/%d"),
-                monthly_val[1],
+                dt.strftime(dt_bounus_base, "%Y/%m/%d"),
                 csv_info.get(CustomItem.DEPARTMENT),
                 "賞与"
             ]
@@ -399,7 +375,7 @@ def create_custom_data(df_body: DataFrame, csv_info):
         logger.error(f"考慮漏れ項目の可能性があります。 monthly_val: {monthly_val}")
         exit(1)
 
-    click.echo(f'df_custom: {df_custom}')
+    logger.debug(f'df_custom.to_csv(): {df_custom.to_csv()}')
 
     return df_custom.to_csv()
 
@@ -419,5 +395,4 @@ def get_start_date(df_head):
     """
     date_string = re.sub(r'（(.*) 〜 .*）', r'\1', df_head.at['集計期間', '賃金台帳'])
     start_dt = dt.strptime(date_string, "%Y年%m月%d日")
-    click.echo(f"start_dt: {start_dt}")
     return start_dt
