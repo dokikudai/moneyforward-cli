@@ -187,7 +187,7 @@ def to_journal_csv(filename):
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df.iteritems()}
 
-    _dict_df = dict_df["賞与 2021/06/30"]
+    _dict_df = dict_df["2021年06月度"]
     _dict_df.replace("0", np.nan)
 
     monthly_payslip = _dict_df.to_dict()
@@ -246,6 +246,8 @@ def to_journal_csv(filename):
     _kashi_mi = kashikata_mibaraihiyo["貸方金額(円)"]
 
     _calc_df = pd.concat([_kari_mi, _kashi_mi], axis=1).fillna(0)
+    # np.nan 発生による float化 を int にキャスト
+    _calc_df = _calc_df.astype({OutJournals.COL_07.value[0]: 'int'}).astype({OutJournals.COL_13.value[0]: 'int'})
     _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
 
     _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
@@ -261,32 +263,33 @@ def to_journal_csv(filename):
     kashikata_column: List[int] = [_df_edit_1.columns.tolist().index(
         i) for i in OutJournals.get_kashikata_mibaraihiyo()]
 
-    _df_edit_1.iloc[karikata_index, karikata_column] = np.NaN
-    _df_edit_1.iloc[kashikata_index, kashikata_column] = np.NaN
+    _df_edit_1.iloc[karikata_index, karikata_column] = ""
+    _df_edit_1.iloc[kashikata_index, kashikata_column] = ""
 
     _calc_mibaraihiyo_data = get_df_mibaraihiyo(
         _df_edit_1,
         _calc_mibaraihiyo,
-        csv_info.get(CustomItem.DEPARTMENT)
+        csv_info
     )
 
     _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
     click.echo(_df_edit_1.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
 
-def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, department):
+def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, csv_info):
     # 未払費用data作成
     df_mi = pd.DataFrame(index=[], columns=df.columns)
     for i, v in df_calc_mibaraihiyo.items():
         _tmp = df.iloc[0, :].copy()
         _tmp_df = pd.DataFrame([_tmp])
-        _tmp_df.loc[:, OutJournals.get_karikata_mibaraihiyo()] = np.NaN
+        _tmp_df.loc[:, OutJournals.get_karikata_mibaraihiyo()] = ""
 
         _tmp_df[OutJournals.COL_09.value[0]] = "未払費用"
         _tmp_df[OutJournals.COL_10.value[0]] = i
         _tmp_df[OutJournals.COL_11.value[0]] = "対象外"
-        _tmp_df[OutJournals.COL_12.value[0]] = department
+        _tmp_df[OutJournals.COL_12.value[0]] = csv_info.get(CustomItem.DEPARTMENT)
         _tmp_df[OutJournals.COL_13.value[0]] = v
+        _tmp_df[OutJournals.COL_15.value[0]] = f"差引支給額 {csv_info.get(CustomItem.DEPARTMENT)}"
 
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
