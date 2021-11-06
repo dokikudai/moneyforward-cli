@@ -69,15 +69,21 @@ class OutJournals(Enum):
         if self is self.COL_02:
             return series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value]
 
+        if self is self.COL_04:
+            return col_04or10_eval(print_env_val, series_monthly_sal)
+
         if self is self.COL_06:
             return series_monthly_sal[CustomItem.DEPARTMENT.value]
+
+        if self is self.COL_10:
+            return col_04or10_eval(print_env_val, series_monthly_sal)
 
         if self is self.COL_12:
             return series_monthly_sal[CustomItem.DEPARTMENT.value]
 
         if self is self.COL_15:
             # csv_eval(custom_item[CustomItem.SALARY_PAYMENT_DATE.value])
-            return csv_eval(print_env_val, series_monthly_sal)
+            return col_15_eval(print_env_val, series_monthly_sal)
 
         if self is self.COL_07 or self is self.COL_13:
             return print_payroll_val
@@ -117,7 +123,21 @@ class OutJournals(Enum):
         return f'name: {self.name}, value: {self.value}'
 
 
-def csv_eval(row, series_monthly_sal: Series):
+def col_04or10_eval(row, series_monthly_sal: Series):
+    if not isinstance(row, str):
+        return ""
+
+    f_string = "f'" + row + "'"
+
+    exec_f = eval(
+        f_string, None, {
+            'depertment': series_monthly_sal[CustomItem.DEPARTMENT.value]
+        }
+    )
+    return exec_f
+
+
+def col_15_eval(row, series_monthly_sal: Series):
     if not isinstance(row, str):
         return ""
 
@@ -175,7 +195,7 @@ def to_journal_csv(filename):
 
     custom_rows = create_custom_data(df_body, csv_info)
 
-    click.echo(f'_body: {_body}')
+#    click.echo(f'_body: {_body}')
 
     _body = custom_rows + _body
 
@@ -183,8 +203,8 @@ def to_journal_csv(filename):
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df_body.iteritems()}
 
-#    series_monthly_sal = dict_df["2021年06月度"]
-    series_monthly_sal: Series = dict_df["2021年05月期 決算賞与"].replace("0", np.nan)
+    series_monthly_sal: Series = dict_df["2021年06月度"].replace("0", np.nan)
+#    series_monthly_sal: Series = dict_df["2021年05月期 決算賞与"].replace("0", np.nan)
 
     logger.debug(f'series_monthly_sal: {series_monthly_sal}')
 
@@ -229,9 +249,9 @@ def to_journal_csv(filename):
     _df_calc_1.iloc[_select_minus.index.tolist()] = _select_minus.copy()
 
     # 未払費用の計算
-    karikata_mibaraihiyo = _df_calc_1.groupby(
+    karikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_04.value[0]] == ""].groupby(
         [OutJournals.COL_03.value[0], OutJournals.COL_04.value[0]]).sum()
-    kashikata_mibaraihiyo = _df_calc_1.groupby(
+    kashikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_10.value[0]] == ""].groupby(
         [OutJournals.COL_09.value[0], OutJournals.COL_10.value[0]]).sum()
 
     _kari_mi = karikata_mibaraihiyo["借方金額(円)"]
@@ -262,14 +282,14 @@ def to_journal_csv(filename):
     _calc_mibaraihiyo_data = get_df_mibaraihiyo(
         _df_edit_1,
         _calc_mibaraihiyo,
-        csv_info
+        series_monthly_sal
     )
 
     _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
     click.echo(_df_edit_1.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
 
-def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, csv_info):
+def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
     # 未払費用data作成
     df_mi = pd.DataFrame(index=[], columns=df.columns)
     for i, v in df_calc_mibaraihiyo.items():
@@ -280,11 +300,11 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, csv_info):
         _tmp_df[OutJournals.COL_09.value[0]] = "未払費用"
         _tmp_df[OutJournals.COL_10.value[0]] = i
         _tmp_df[OutJournals.COL_11.value[0]] = "対象外"
-        _tmp_df[OutJournals.COL_12.value[0]] = csv_info.get(
-            CustomItem.DEPARTMENT)
+        _tmp_df[OutJournals.COL_12.value[0]
+                ] = series_monthly_sal[CustomItem.DEPARTMENT.value]
         _tmp_df[OutJournals.COL_13.value[0]] = v
         _tmp_df[OutJournals.COL_15.value[0]
-                ] = f"差引支給額 {csv_info.get(CustomItem.DEPARTMENT)}"
+                ] = f"{series_monthly_sal.name} 差引支給額 {series_monthly_sal[CustomItem.DEPARTMENT.value]}"
 
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
