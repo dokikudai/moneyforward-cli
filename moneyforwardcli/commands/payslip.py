@@ -14,6 +14,7 @@ from pandas.core.frame import DataFrame
 from dateutil.relativedelta import relativedelta
 import click_logging
 import numpy as np
+from pandas.core.series import Series
 
 
 logger = logging.getLogger(__name__)
@@ -57,22 +58,26 @@ class OutJournals(Enum):
         self.col = col
         self.default_val = default_val
 
-    def select_val(self, print_env_val, print_payroll_val, custom_item):
+    def select_val(
+            self,
+            print_env_val,
+            print_payroll_val,
+            series_monthly_sal: Series):
         if self is self.COL_01:
             return 1
 
         if self is self.COL_02:
-            return custom_item[CustomItem.PAYROLL_CLOSING_DATE.value]
+            return series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value]
 
         if self is self.COL_06:
-            return custom_item[CustomItem.DEPARTMENT.value]
+            return series_monthly_sal[CustomItem.DEPARTMENT.value]
 
         if self is self.COL_12:
-            return custom_item[CustomItem.DEPARTMENT.value]
+            return series_monthly_sal[CustomItem.DEPARTMENT.value]
 
         if self is self.COL_15:
             # csv_eval(custom_item[CustomItem.SALARY_PAYMENT_DATE.value])
-            return csv_eval(print_env_val, custom_item)
+            return csv_eval(print_env_val, series_monthly_sal)
 
         if self is self.COL_07 or self is self.COL_13:
             return print_payroll_val
@@ -112,7 +117,7 @@ class OutJournals(Enum):
         return f'name: {self.name}, value: {self.value}'
 
 
-def csv_eval(row, custom_item):
+def csv_eval(row, series_monthly_sal: Series):
     if not isinstance(row, str):
         return ""
 
@@ -120,24 +125,12 @@ def csv_eval(row, custom_item):
 
     exec_f = eval(
         f_string, None, {
-            'yyyymm': to_jp_year_name(custom_item[CustomItem.SALARY_PAYMENT_DATE.value]),
-            'sal_kbn': custom_item[CustomItem.SALARY_KBN.value],
-            'depertment': custom_item[CustomItem.DEPARTMENT.value]
+            'yyyymm': series_monthly_sal.name,
+            'sal_kbn': series_monthly_sal[CustomItem.SALARY_KBN.value],
+            'depertment': series_monthly_sal[CustomItem.DEPARTMENT.value]
         }
     )
     return exec_f
-
-
-def to_jp_year_name(yyyymmdd):
-    _d = yyyymmdd.split('/')
-
-    yyyy = int(_d[0])
-    mm = _d[1].zfill(2)
-
-    if yyyy > 2018:
-        return f'令和{str(yyyy - 2018).zfill(2)}年{mm}月度'
-
-    return f'{str(yyyy)}年{mm}月度'
 
 
 class CustomItem(Enum):
@@ -181,32 +174,31 @@ def to_journal_csv(filename):
     df_body = pd.read_csv(io.StringIO(_body))
 
     custom_rows = create_custom_data(df_body, csv_info)
+
+    click.echo(f'_body: {_body}')
+
     _body = custom_rows + _body
 
-    df: DataFrame = pd.read_csv(io.StringIO(_body), index_col=0)
+    df_body: DataFrame = pd.read_csv(io.StringIO(_body), index_col=0)
     dict_df = {label: s.replace("0", np.nan).dropna()
-               for label, s in df.iteritems()}
+               for label, s in df_body.iteritems()}
 
-    _dict_df = dict_df["2021年06月度"]
-    _dict_df.replace("0", np.nan)
+#    series_monthly_sal = dict_df["2021年06月度"]
+    series_monthly_sal: Series = dict_df["2021年05月期 決算賞与"].replace("0", np.nan)
 
-    monthly_payslip = _dict_df.to_dict()
+    logger.debug(f'series_monthly_sal: {series_monthly_sal}')
 
-    custom_dic = _dict_df[
-        CustomItem.SALARY_PAYMENT_DATE.value: CustomItem.SALARY_KBN.value
-    ].to_dict()
+    df_custom_print: DataFrame = pd.read_csv(
+        "./.env/csv.csv", index_col=0, encoding="shift-jis")
 
-    df_custom_print: DataFrame = pd.read_csv("./.env/csv.csv", index_col=0, encoding="shift-jis")
-    _index = df_custom_print.index
     _data = []
-    for mp_key in monthly_payslip.keys():
+    for key, value in series_monthly_sal.to_dict().items():
         _p = [
             i.select_val(
-                df_custom_print.at[mp_key, i.value[0]],
-                monthly_payslip[mp_key],
-                custom_dic
-            )
-            for i in OutJournals if mp_key in _index.values
+                df_custom_print.at[key, i.value[0]],
+                value,
+                series_monthly_sal
+            ) for i in OutJournals if key in df_custom_print.index.values
         ]
 
         if len(_p):
@@ -247,7 +239,8 @@ def to_journal_csv(filename):
 
     _calc_df = pd.concat([_kari_mi, _kashi_mi], axis=1).fillna(0)
     # np.nan 発生による float化 を int にキャスト
-    _calc_df = _calc_df.astype({OutJournals.COL_07.value[0]: 'int'}).astype({OutJournals.COL_13.value[0]: 'int'})
+    _calc_df = _calc_df.astype({OutJournals.COL_07.value[0]: 'int'}).astype({
+        OutJournals.COL_13.value[0]: 'int'})
     _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
 
     _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
@@ -287,9 +280,11 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, csv_info):
         _tmp_df[OutJournals.COL_09.value[0]] = "未払費用"
         _tmp_df[OutJournals.COL_10.value[0]] = i
         _tmp_df[OutJournals.COL_11.value[0]] = "対象外"
-        _tmp_df[OutJournals.COL_12.value[0]] = csv_info.get(CustomItem.DEPARTMENT)
+        _tmp_df[OutJournals.COL_12.value[0]] = csv_info.get(
+            CustomItem.DEPARTMENT)
         _tmp_df[OutJournals.COL_13.value[0]] = v
-        _tmp_df[OutJournals.COL_15.value[0]] = f"差引支給額 {csv_info.get(CustomItem.DEPARTMENT)}"
+        _tmp_df[OutJournals.COL_15.value[0]
+                ] = f"差引支給額 {csv_info.get(CustomItem.DEPARTMENT)}"
 
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
@@ -354,11 +349,11 @@ def create_custom_data(df_body: DataFrame, csv_info):
             dt_bounus_base = (
                 dt_bounus_pay.replace(day=1) - relativedelta(days=1)
             )
-            df_custom[f"賞与 {monthly_val[1]}"] = [
+            df_custom[f'{dt.strftime(dt_bounus_base, "%Y年%m月期")} 決算賞与'] = [
                 dt.strftime(dt_bounus_pay, "%Y/%m/%d"),
                 dt.strftime(dt_bounus_base, "%Y/%m/%d"),
                 csv_info.get(CustomItem.DEPARTMENT),
-                "賞与"
+                "決算賞与"
             ]
 
             continue
