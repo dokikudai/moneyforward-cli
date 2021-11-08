@@ -304,7 +304,7 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
                 ] = series_monthly_sal[CustomItem.DEPARTMENT.value]
         _tmp_df[OutJournals.COL_13.value[0]] = v
         _tmp_df[OutJournals.COL_15.value[0]
-                ] = f"{series_monthly_sal.name} 差引支給額 {series_monthly_sal[CustomItem.DEPARTMENT.value]}"
+                ] = f"{series_monthly_sal.name} {series_monthly_sal[CustomItem.SALARY_KBN.value]} 差引支給額 {series_monthly_sal[CustomItem.DEPARTMENT.value]}"
 
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
