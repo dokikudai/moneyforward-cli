@@ -272,7 +272,10 @@ def to_journal_csv(filename):
     karikata_column: List[int] = [_df_edit_1.columns.tolist().index(
         i) for i in OutJournals.get_karikata_mibaraihiyo()]
 
-    kashikata_index: List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用"]
+    kashikata_index: List[int] = _df_edit_1.index[
+        (_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用") &
+        (_df_edit_1[OutJournals.COL_10.value[0]] == "")
+    ]
     kashikata_column: List[int] = [_df_edit_1.columns.tolist().index(
         i) for i in OutJournals.get_kashikata_mibaraihiyo()]
 
