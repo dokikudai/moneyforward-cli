@@ -60,11 +60,12 @@ class OutJournals(Enum):
 
     def select_val(
             self,
+            number,
             print_env_val,
             print_payroll_val,
             series_monthly_sal: Series):
         if self is self.COL_01:
-            return 1
+            return number
 
         if self is self.COL_02:
             return series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value]
@@ -74,6 +75,9 @@ class OutJournals(Enum):
 
         if self is self.COL_06:
             return series_monthly_sal[CustomItem.DEPARTMENT.value]
+
+        if self is self.COL_09:
+            return col_09_eval(print_env_val, series_monthly_sal)
 
         if self is self.COL_10:
             return col_04or10_eval(print_env_val, series_monthly_sal)
@@ -123,6 +127,33 @@ class OutJournals(Enum):
         return f'name: {self.name}, value: {self.value}'
 
 
+def col_09_eval(row, series_monthly_sal: Series):
+    if not isinstance(row, str):
+        return ""
+
+    f_string = "f'" + row + "'"
+
+    exec_f = eval(
+        f_string, None, {
+            'depertment': series_monthly_sal[CustomItem.DEPARTMENT.value]
+        }
+    )
+
+    # TODO: 微妙なので直したい
+    if exec_f == '未払費用（労働保険）' or exec_f == '未払金（労働保険）':
+
+        # 2020年04月～2021年03月を遇、2021年04月～2022年03月を奇という風に繰り返し
+        dt_pyroll_closeing_date = dt.strptime(series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value], "%Y/%m/%d")
+        dt_year = (dt_pyroll_closeing_date + relativedelta(days=1)) - relativedelta(months=4)
+        _year = dt_year.strftime('%Y')
+        if int(_year) % 2:
+            exec_f = exec_f + "奇"
+        else:
+            exec_f = exec_f + "偶"
+
+    return exec_f
+
+
 def col_04or10_eval(row, series_monthly_sal: Series):
     if not isinstance(row, str):
         return ""
@@ -134,6 +165,15 @@ def col_04or10_eval(row, series_monthly_sal: Series):
             'depertment': series_monthly_sal[CustomItem.DEPARTMENT.value]
         }
     )
+
+    # TODO: 微妙なので直したい
+    if exec_f == '所得税':
+        month = series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value][5:7]
+        if 6 <= int(month) <= 11:
+            exec_f = exec_f + "（06～11月）"
+        else:
+            exec_f = exec_f + "（12～05月）"
+
     return exec_f
 
 
@@ -203,93 +243,106 @@ def to_journal_csv(filename):
     dict_df = {label: s.replace("0", np.nan).dropna()
                for label, s in df_body.iteritems()}
 
-    series_monthly_sal: Series = dict_df["2021年06月度"].replace("0", np.nan)
-#    series_monthly_sal: Series = dict_df["2021年05月期 決算賞与"].replace("0", np.nan)
+    months: DataFrame = pd.read_csv(io.StringIO(custom_rows), index_col=0)
 
-    logger.debug(f'series_monthly_sal: {series_monthly_sal}')
+    list_months = [m for m in months.columns if m != "合計"]
+#    click.echo(f'list_months: {list_months}')
 
-    df_custom_print: DataFrame = pd.read_csv(
-        "./.env/csv.csv", index_col=0, encoding="shift-jis")
+    list_payslip: List = []
 
-    _data = []
-    for key, value in series_monthly_sal.to_dict().items():
-        _p = [
-            i.select_val(
-                df_custom_print.at[key, i.value[0]],
-                value,
-                series_monthly_sal
-            ) for i in OutJournals if key in df_custom_print.index.values
+    for idx, i_month in enumerate(list_months):
+
+        series_monthly_sal: Series = dict_df[i_month].replace("0", np.nan)
+    #    series_monthly_sal: Series = dict_df["2021年05月期 決算賞与"].replace("0", np.nan)
+
+        logger.debug(f'series_monthly_sal: {series_monthly_sal}')
+
+        df_custom_print: DataFrame = pd.read_csv(
+            "./.env/csv.csv", index_col=0, encoding="shift-jis")
+
+        _data = []
+        for key, value in series_monthly_sal.to_dict().items():
+            _p = [
+                i.select_val(
+                    idx + 1,
+                    df_custom_print.at[key, i.value[0]],
+                    value,
+                    series_monthly_sal
+                ) for i in OutJournals if key in df_custom_print.index.values
+            ]
+
+            if len(_p):
+                _data.append(_p)
+
+        # マイナスデータの借方/貸方入れ替え
+        _df_calc_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
+        _df_calc_1 = _df_calc_1.astype({OutJournals.COL_07.value[0]: 'int'})
+        _df_calc_1 = _df_calc_1.astype({OutJournals.COL_13.value[0]: 'int'})
+
+        _karikata_vals = _df_calc_1[OutJournals.COL_07.value[0]]
+        _kashikata_vals = _df_calc_1[OutJournals.COL_13.value[0]]
+
+        # SettingWithCopyWarning 防止で copy 付加
+        _select_minus = _df_calc_1[(_karikata_vals < 0)
+                                | (_kashikata_vals < 0)].copy()
+        _select_minus[OutJournals.COL_07.value[0]
+                    ] = _select_minus[OutJournals.COL_07.value[0]] * -1
+        _select_minus[OutJournals.COL_13.value[0]
+                    ] = _select_minus[OutJournals.COL_13.value[0]] * -1
+
+        _kari_data = _select_minus[OutJournals.get_karikata_mibaraihiyo()]
+        _kashi_data = _select_minus[OutJournals.get_kashikata_mibaraihiyo()]
+
+        _select_minus[OutJournals.get_karikata_mibaraihiyo()] = _kashi_data
+        _select_minus[OutJournals.get_kashikata_mibaraihiyo()] = _kari_data
+
+        _df_calc_1.iloc[_select_minus.index.tolist()] = _select_minus.copy()
+
+        # 未払費用の計算
+        karikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_04.value[0]] == ""].groupby(
+            [OutJournals.COL_03.value[0], OutJournals.COL_04.value[0]]).sum()
+        kashikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_10.value[0]] == ""].groupby(
+            [OutJournals.COL_09.value[0], OutJournals.COL_10.value[0]]).sum()
+
+        _kari_mi = karikata_mibaraihiyo["借方金額(円)"]
+        _kashi_mi = kashikata_mibaraihiyo["貸方金額(円)"]
+
+        _calc_df = pd.concat([_kari_mi, _kashi_mi], axis=1).fillna(0)
+        # np.nan 発生による float化 を int にキャスト
+        _calc_df = _calc_df.astype({OutJournals.COL_07.value[0]: 'int'}).astype({
+            OutJournals.COL_13.value[0]: 'int'})
+        _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
+
+        _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
+
+        # 未払費用の編集
+        _df_edit_1 = _df_calc_1.copy()
+
+        karikata_index: List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
+        karikata_column: List[int] = [_df_edit_1.columns.tolist().index(
+            i) for i in OutJournals.get_karikata_mibaraihiyo()]
+
+        kashikata_index: List[int] = _df_edit_1.index[
+            (_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用") &
+            (_df_edit_1[OutJournals.COL_10.value[0]] == "")
         ]
+        kashikata_column: List[int] = [_df_edit_1.columns.tolist().index(
+            i) for i in OutJournals.get_kashikata_mibaraihiyo()]
 
-        if len(_p):
-            _data.append(_p)
+        _df_edit_1.iloc[karikata_index, karikata_column] = ""
+        _df_edit_1.iloc[kashikata_index, kashikata_column] = ""
 
-    # マイナスデータの借方/貸方入れ替え
-    _df_calc_1 = pd.DataFrame(_data, columns=OutJournals.csv_header())
-    _df_calc_1 = _df_calc_1.astype({OutJournals.COL_07.value[0]: 'int'})
-    _df_calc_1 = _df_calc_1.astype({OutJournals.COL_13.value[0]: 'int'})
+        _calc_mibaraihiyo_data = get_df_mibaraihiyo(
+            _df_edit_1,
+            _calc_mibaraihiyo,
+            series_monthly_sal
+        )
 
-    _karikata_vals = _df_calc_1[OutJournals.COL_07.value[0]]
-    _kashikata_vals = _df_calc_1[OutJournals.COL_13.value[0]]
+        list_payslip.append(_df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True))
+        # click.echo(_df_edit_1.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
-    # SettingWithCopyWarning 防止で copy 付加
-    _select_minus = _df_calc_1[(_karikata_vals < 0)
-                               | (_kashikata_vals < 0)].copy()
-    _select_minus[OutJournals.COL_07.value[0]
-                  ] = _select_minus[OutJournals.COL_07.value[0]] * -1
-    _select_minus[OutJournals.COL_13.value[0]
-                  ] = _select_minus[OutJournals.COL_13.value[0]] * -1
-
-    _kari_data = _select_minus[OutJournals.get_karikata_mibaraihiyo()]
-    _kashi_data = _select_minus[OutJournals.get_kashikata_mibaraihiyo()]
-
-    _select_minus[OutJournals.get_karikata_mibaraihiyo()] = _kashi_data
-    _select_minus[OutJournals.get_kashikata_mibaraihiyo()] = _kari_data
-
-    _df_calc_1.iloc[_select_minus.index.tolist()] = _select_minus.copy()
-
-    # 未払費用の計算
-    karikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_04.value[0]] == ""].groupby(
-        [OutJournals.COL_03.value[0], OutJournals.COL_04.value[0]]).sum()
-    kashikata_mibaraihiyo = _df_calc_1[_df_calc_1[OutJournals.COL_10.value[0]] == ""].groupby(
-        [OutJournals.COL_09.value[0], OutJournals.COL_10.value[0]]).sum()
-
-    _kari_mi = karikata_mibaraihiyo["借方金額(円)"]
-    _kashi_mi = kashikata_mibaraihiyo["貸方金額(円)"]
-
-    _calc_df = pd.concat([_kari_mi, _kashi_mi], axis=1).fillna(0)
-    # np.nan 発生による float化 を int にキャスト
-    _calc_df = _calc_df.astype({OutJournals.COL_07.value[0]: 'int'}).astype({
-        OutJournals.COL_13.value[0]: 'int'})
-    _calc_df["貸方-借方金額(円)"] = _calc_df["貸方金額(円)"] - _calc_df["借方金額(円)"]
-
-    _calc_mibaraihiyo = _calc_df.loc["未払費用", "貸方-借方金額(円)"]
-
-    # 未払費用の編集
-    _df_edit_1 = _df_calc_1.copy()
-
-    karikata_index: List[int] = _df_edit_1.index[_df_edit_1[OutJournals.COL_03.value[0]] == "未払費用"]
-    karikata_column: List[int] = [_df_edit_1.columns.tolist().index(
-        i) for i in OutJournals.get_karikata_mibaraihiyo()]
-
-    kashikata_index: List[int] = _df_edit_1.index[
-        (_df_edit_1[OutJournals.COL_09.value[0]] == "未払費用") &
-        (_df_edit_1[OutJournals.COL_10.value[0]] == "")
-    ]
-    kashikata_column: List[int] = [_df_edit_1.columns.tolist().index(
-        i) for i in OutJournals.get_kashikata_mibaraihiyo()]
-
-    _df_edit_1.iloc[karikata_index, karikata_column] = ""
-    _df_edit_1.iloc[kashikata_index, kashikata_column] = ""
-
-    _calc_mibaraihiyo_data = get_df_mibaraihiyo(
-        _df_edit_1,
-        _calc_mibaraihiyo,
-        series_monthly_sal
-    )
-
-    _df_edit_1 = _df_edit_1.append(_calc_mibaraihiyo_data, ignore_index=True)
-    click.echo(_df_edit_1.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
+    df_payslip: DataFrame = pd.concat(list_payslip)
+    click.echo(df_payslip.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
 
 def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
