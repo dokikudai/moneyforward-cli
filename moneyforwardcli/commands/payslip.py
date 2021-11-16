@@ -283,12 +283,9 @@ def to_journal_csv(filename):
         _kashikata_vals = _df_calc_1[OutJournals.COL_13.value[0]]
 
         # SettingWithCopyWarning 防止で copy 付加
-        _select_minus = _df_calc_1[(_karikata_vals < 0)
-                                | (_kashikata_vals < 0)].copy()
-        _select_minus[OutJournals.COL_07.value[0]
-                    ] = _select_minus[OutJournals.COL_07.value[0]] * -1
-        _select_minus[OutJournals.COL_13.value[0]
-                    ] = _select_minus[OutJournals.COL_13.value[0]] * -1
+        _select_minus = _df_calc_1[(_karikata_vals < 0) | (_kashikata_vals < 0)].copy()
+        _select_minus[OutJournals.COL_07.value[0]] = _select_minus[OutJournals.COL_07.value[0]] * -1
+        _select_minus[OutJournals.COL_13.value[0]] = _select_minus[OutJournals.COL_13.value[0]] * -1
 
         _kari_data = _select_minus[OutJournals.get_karikata_mibaraihiyo()]
         _kashi_data = _select_minus[OutJournals.get_kashikata_mibaraihiyo()]
@@ -359,8 +356,9 @@ def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
         _tmp_df[OutJournals.COL_12.value[0]
                 ] = series_monthly_sal[CustomItem.DEPARTMENT.value]
         _tmp_df[OutJournals.COL_13.value[0]] = v
-        _tmp_df[OutJournals.COL_15.value[0]
-                ] = f"{series_monthly_sal.name} {series_monthly_sal[CustomItem.SALARY_KBN.value]} 差引支給額 {series_monthly_sal[CustomItem.DEPARTMENT.value]}"
+        _tmp_df[
+            OutJournals.COL_15.value[0]
+        ] = f"{series_monthly_sal.name} {series_monthly_sal[CustomItem.SALARY_KBN.value]} 差引支給額 {series_monthly_sal[CustomItem.DEPARTMENT.value]}"
 
         df_mi = df_mi.append(_tmp_df, ignore_index=True)
 
