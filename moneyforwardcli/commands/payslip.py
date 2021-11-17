@@ -86,8 +86,10 @@ class OutJournals(Enum):
             return series_monthly_sal[CustomItem.DEPARTMENT.value]
 
         if self is self.COL_15:
-            # csv_eval(custom_item[CustomItem.SALARY_PAYMENT_DATE.value])
             return col_15_eval(print_env_val, series_monthly_sal)
+
+        if self is self.COL_17:
+            return col_17_eval(print_env_val, series_monthly_sal)
 
         if self is self.COL_07 or self is self.COL_13:
             return print_payroll_val
@@ -191,6 +193,21 @@ def col_15_eval(row, series_monthly_sal: Series):
         }
     )
     return exec_f
+
+
+def col_17_eval(row, series_monthly_sal: Series):
+    dt_pyroll_closeing_date = dt.strptime(series_monthly_sal[CustomItem.PAYROLL_CLOSING_DATE.value], "%Y/%m/%d")
+    dt_pay_date = dt_pyroll_closeing_date + relativedelta(months=1)
+
+    month_close = dt_pyroll_closeing_date.strftime("%m").zfill(2)
+    month_pay = dt_pay_date.strftime("%m").zfill(2)
+
+    add_tag = f"{month_close}月〆給与|{month_pay}月支払給与"
+
+    if not isinstance(row, str):
+        return add_tag
+
+    return row + "|" + add_tag
 
 
 class CustomItem(Enum):
