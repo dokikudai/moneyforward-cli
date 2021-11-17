@@ -362,13 +362,19 @@ def to_journal_csv(filename):
 def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
     # 未払費用data作成
     df_mi = pd.DataFrame(index=[], columns=df.columns)
-    for i, v in df_calc_mibaraihiyo.items():
+    
+    if "賞与" in series_monthly_sal[CustomItem.SALARY_KBN.value]:
+        salary_kbn = "賞与"
+    else:
+        salary_kbn = "給与"
+
+    for _, v in df_calc_mibaraihiyo.items():
         _tmp = df.iloc[0, :].copy()
         _tmp_df = pd.DataFrame([_tmp])
         _tmp_df.loc[:, OutJournals.get_karikata_mibaraihiyo()] = ""
 
         _tmp_df[OutJournals.COL_09.value[0]] = "未払費用"
-        _tmp_df[OutJournals.COL_10.value[0]] = i
+        _tmp_df[OutJournals.COL_10.value[0]] = salary_kbn
         _tmp_df[OutJournals.COL_11.value[0]] = "対象外"
         _tmp_df[OutJournals.COL_12.value[0]
                 ] = series_monthly_sal[CustomItem.DEPARTMENT.value]
