@@ -1,5 +1,6 @@
 import click
 from moneyforwardcli.commands.payslip import payslip
+from moneyforwardcli.commands.expenses import expenses
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -10,3 +11,4 @@ def cli():
 
 
 cli.add_command(payslip)
+cli.add_command(expenses)
