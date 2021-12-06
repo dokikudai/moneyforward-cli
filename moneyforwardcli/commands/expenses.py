@@ -2,8 +2,9 @@ import logging
 import click
 import click_logging
 import pandas as pd
-from enum import Enum
 from datetime import datetime as dt
+from moneyforwardcli.commands.out_journals import OutJournals as oj
+from moneyforwardcli.commands.out_journals import MoneyForwardJournals as mfj
 
 
 logger = logging.getLogger(__name__)
@@ -16,69 +17,40 @@ def expenses():
     """
 
 
-class OutJournals(Enum):
-    """出力CSV仕訳enum
-    """
-    COL_01 = ("取引No", "")
-    COL_02 = ("取引日", "")
-    COL_03 = ("借方勘定科目", "")
-    COL_04 = ("借方補助科目", "")
-    COL_05 = ("借方税区分", "")
-    COL_06 = ("借方部門", "")
-    COL_07 = ("借方金額(円)", "")
-    COL_08 = ("借方税額", "")
-    COL_09 = ("貸方勘定科目", "")
-    COL_10 = ("貸方補助科目", "")
-    COL_11 = ("貸方税区分", "対象外")
-    COL_12 = ("貸方部門", "")
-    COL_13 = ("貸方金額(円)", "")
-    COL_14 = ("貸方税額", "")
-    COL_15 = ("摘要", "")
-    COL_16 = ("仕訳メモ", "")
-    COL_17 = ("タグ", "")
-    COL_18 = ("MF仕訳タイプ", "")
-    COL_19 = ("決算整理仕訳", "")
-    COL_20 = ("作成日時", "")
-    COL_21 = ("最終更新日時", "")
-
-    def __init__(self, col, default_val):
-        self.col = col
-        self.default_val = default_val
-
-    @classmethod
-    def csv_header(cls):
-        return [i.value[0] for i in cls]
-
-    def __str__(self):
-        return f'name: {self.name}, value: {self.value}'
-
-
 @expenses.command()
-@click.argument("filename")
+@click.argument("filename", type=click.File(encoding="shift_jis"))
 @click_logging.simple_verbosity_option(logger)
 def to_journal_csv(filename):
 
     df_freee = pd.read_csv(filename)
+    
+    
 
     # str -> 日付変換
-    df_freee['日付'] = pd.to_datetime(df_freee['日付'])
+    df_freee[oj.COL_02.value[0]] = pd.to_datetime(df_freee[oj.COL_02.value[0]])
 
     # 日付絞り込み
     df_cp = df_freee[
-        (df_freee["日付"] >= dt.strptime("2020/06/01", "%Y/%m/%d")) &
-        (df_freee["日付"] <= dt.strptime("2021/05/31", "%Y/%m/%d"))
+        (df_freee[oj.COL_02.value[0]] >= dt.strptime("2020/06/01", "%Y/%m/%d")) &
+        (df_freee[oj.COL_02.value[0]] <= dt.strptime("2021/05/31", "%Y/%m/%d"))
     ]
 
     # 日付 -> str 変換
-    df_cp['日付'] = df_cp['日付'].dt.strftime('%Y/%m/%d')
+    df_cp[oj.COL_02.value[0]] = df_cp[oj.COL_02.value[0]].dt.strftime('%Y/%m/%d')
     df_cp = df_cp.reset_index(drop=True)
 
-    # "申請番号" ～ "メモタグ"項目が 全て NaN かどうか
-    for idx, is_null in df_cp.loc[:, "申請番号":"メモタグ"].isnull().all(axis=1).items():
-        if is_null:
-            df_cp.loc[idx: idx, "申請番号":"メモタグ"] = df_cp.loc[(idx - 1): (idx - 1), "申請番号": "メモタグ"].values
+    _summary_column = [i.value for i in mfj.summary_column()]
 
-    df_in = pd.DataFrame(columns=OutJournals.csv_header())
+    click.echo(df_cp)
+
+    # "申請番号" ～ "メモタグ"項目が 全て NaN かどうか
+    for idx, is_null in df_cp.loc[:, _summary_column].isnull().all(axis=1).items():
+        if is_null:
+            df_cp.loc[idx: idx,  _summary_column] = df_cp.loc[(idx - 1): (idx - 1), _summary_column].values
+
+    df_in = pd.DataFrame(columns=oj.csv_header())
+
+    click.echo(df_in)
 
     df_in["取引日"] = df_cp["日付"]
     df_in["適用"] = df_cp["内容"]
