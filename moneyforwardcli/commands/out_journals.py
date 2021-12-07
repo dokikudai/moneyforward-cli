@@ -1,3 +1,4 @@
+import click
 from enum import Enum
 from pandas.core.series import Series
 from typing import List
@@ -60,3 +61,23 @@ class MoneyForwardCloudJournals(Enum):
     @classmethod
     def csv_header(cls):
         return [i.value for i in cls]
+
+
+class TaxKbnChange(Enum):
+    TAX_01 = ("課対仕入10%", "課税仕入 10%")
+    TAX_02 = ("非課仕入", "非課税仕入")
+    TAX_03 = ("対象外", "対象外")
+
+    def __init__(self, free_tax_kbn, money_forward_tax_kbn):
+        self.free_tax_kbn = free_tax_kbn
+        self.money_forward_tax_kbn = money_forward_tax_kbn
+
+    @classmethod
+    def tax_kbn_to_money_forward(cls, tax_kbn_freee):
+        for i in cls:
+            if i.value[0] == tax_kbn_freee:
+                click.echo(i.value[0])
+                return i.value[1]
+
+        click.echo(f"想定外の課税区分です。 tax_kbn_freee = {tax_kbn_freee}")
+        exit(1)

@@ -6,6 +6,8 @@ import pandas as pd
 from datetime import datetime as dt
 from moneyforwardcli.commands.out_journals import MoneyForwardCloudJournals as mfcj
 from moneyforwardcli.commands.out_journals import FreeeJournals as fj
+from moneyforwardcli.commands.out_journals import TaxKbnChange as tkc
+
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,7 @@ def to_journal_csv(filename):
     df_mfc[mfcj.COL_02.value] = df_freee[fj.COL_03.value]
     df_mfc[mfcj.COL_03.value] = df_freee[fj.COL_06.value]
     df_mfc[mfcj.COL_04.value] = ""
-    df_mfc[mfcj.COL_05.value] = df_freee[fj.COL_07.value]
+    df_mfc[mfcj.COL_05.value] = df_freee[fj.COL_07.value].map(lambda _: tkc.tax_kbn_to_money_forward(_))
     df_mfc[mfcj.COL_06.value] = df_freee[fj.COL_13.value]
     df_mfc[mfcj.COL_07.value] = df_freee[fj.COL_08.value]
     df_mfc[mfcj.COL_09.value] = "未払金"
@@ -80,7 +82,3 @@ def to_journal_csv(filename):
     click.echo(df_mfc.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
     df_mfc.to_csv('import_立替経費_2020年度.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
-    
-    
-    課対仕入10% -> 課税仕入 10%
-    非課仕入 -> 非課税仕入
