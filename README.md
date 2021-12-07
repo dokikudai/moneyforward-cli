@@ -21,4 +21,5 @@ eval "$(_MONEYFORWARD_COMPLETE=bash_source moneyforward)"
 # コマンドサンプル
 ```
 moneyforward payslip to-journal-csv .env/payroll_book_report_3_野極武.csv --verbosity
+moneyforward expenses to-journal-csv .env/deals.csv
 ```
