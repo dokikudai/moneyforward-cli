@@ -23,7 +23,7 @@ def expenses():
 @click_logging.simple_verbosity_option(logger)
 def to_journal_csv(filename):
 
-    df_freee = pd.read_csv(filename)
+    df_freee: DataFrame = pd.read_csv(filename)
 
     _summary_column = [i.value for i in fj.summary_column()]
 
@@ -67,16 +67,20 @@ def to_journal_csv(filename):
     df_mfc[mfcj.COL_02.value] = df_freee[fj.COL_03.value]
     df_mfc[mfcj.COL_03.value] = df_freee[fj.COL_06.value]
     df_mfc[mfcj.COL_04.value] = ""
-    df_mfc[mfcj.COL_05.value] = "対象外"
+    df_mfc[mfcj.COL_05.value] = df_freee[fj.COL_07.value]
     df_mfc[mfcj.COL_06.value] = df_freee[fj.COL_13.value]
     df_mfc[mfcj.COL_07.value] = df_freee[fj.COL_08.value]
     df_mfc[mfcj.COL_09.value] = "未払金"
     df_mfc[mfcj.COL_10.value] = df_freee[fj.COL_13.value]
-    df_mfc[mfcj.COL_11.value] = df_freee[fj.COL_13.value]
-    df_mfc[mfcj.COL_11.value] = df_freee[fj.COL_07.value]
+    df_mfc[mfcj.COL_11.value] = "対象外"
     df_mfc[mfcj.COL_13.value] = df_freee[fj.COL_08.value]
-    df_mfc[mfcj.COL_15.value] = df_freee[fj.COL_11.value]
+    df_mfc[mfcj.COL_15.value] = df_freee[fj.COL_11.value].map(lambda _: _.replace("\n", ""))
+    df_mfc[mfcj.COL_18.value] = "経費・債務支払"
 
     click.echo(df_mfc.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
 
     df_mfc.to_csv('import_立替経費_2020年度.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
+    
+    
+    課対仕入10% -> 課税仕入 10%
+    非課仕入 -> 非課税仕入
