@@ -357,12 +357,13 @@ def to_journal_csv(filename):
 
     df_payslip: DataFrame = pd.concat(list_payslip)
     click.echo(df_payslip.to_csv(index=False, quoting=csv.QUOTE_NONNUMERIC))
+    df_payslip.to_csv('import_給与_2020年度.csv', index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
 def get_df_mibaraihiyo(df, df_calc_mibaraihiyo, series_monthly_sal: Series):
     # 未払費用data作成
     df_mi = pd.DataFrame(index=[], columns=df.columns)
-    
+
     if "賞与" in series_monthly_sal[CustomItem.SALARY_KBN.value]:
         salary_kbn = "賞与"
     else:

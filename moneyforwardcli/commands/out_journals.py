@@ -67,6 +67,7 @@ class TaxKbnChange(Enum):
     TAX_01 = ("課対仕入10%", "課税仕入 10%")
     TAX_02 = ("非課仕入", "非課税仕入")
     TAX_03 = ("対象外", "対象外")
+    TAX_04 = ("対外仕入","対象外仕")
 
     def __init__(self, free_tax_kbn, money_forward_tax_kbn):
         self.free_tax_kbn = free_tax_kbn

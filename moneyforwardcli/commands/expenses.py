@@ -58,10 +58,6 @@ def to_journal_csv(filename):
     df_freee[fj.COL_03.value] = df_freee[fj.COL_03.value].dt.strftime('%Y/%m/%d')
     df_freee = df_freee.reset_index(drop=True)
 
-    # df_freee の 管理番号 項目で計算
-    
-
-
     # マネーフォワード用 データフレーム作成
     df_mfc = pd.DataFrame(columns=mfcj.csv_header())
 
@@ -75,6 +71,7 @@ def to_journal_csv(filename):
     df_mfc[mfcj.COL_09.value] = "未払金"
     df_mfc[mfcj.COL_10.value] = df_freee[fj.COL_13.value]
     df_mfc[mfcj.COL_11.value] = "対象外"
+    df_mfc[mfcj.COL_12.value] = df_freee[fj.COL_13.value]
     df_mfc[mfcj.COL_13.value] = df_freee[fj.COL_08.value]
     df_mfc[mfcj.COL_15.value] = df_freee[fj.COL_11.value].map(lambda _: _.replace("\n", ""))
     df_mfc[mfcj.COL_18.value] = "経費・債務支払"
